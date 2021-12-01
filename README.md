@@ -9,7 +9,13 @@
  - **Street and Sidewalk Cleaning**: https://data.sfgov.org/City-Management-and-Ethics/Street-and-Sidewalk-Cleaning/h3eg-w3pj
  - Map of Sidewalk Widths (https://data.sfgov.org/Transportation/Map-of-Sidewalk-Widths/ygcm-bt3x)
  - Map of Police Department Incident Reports: 2018 to Present(https://data.sfgov.org/Public-Safety/Police-Department-Incident-Reports-2018-to-Present/wg3w-h783) 
- - Map of Landmarks (https://data.sfgov.org/Housing-and-Buildings/Map-of-Landmarks-Listed-in-Article-10-of-the-San-F/hycf-nc3x)
 
 
 **Graffiti**: https://data.sfgov.org/City-Infrastructure/Graffiti/vg6y-3pcr
+**Blocked Bike Lanes and Double Parking**: https://data.sfgov.org/City-Infrastructure/Blocked-Bike-Lanes-and-Double-Parking/ihm3-5gmc
+**SFMTA - Parking Citations**:https://data.sfgov.org/Transportation/SFMTA-Parking-Citations/ab4h-6ztd
+**Parking Signs / Street Space Permits**:https://data.sfgov.org/City-Infrastructure/Parking-Signs-Street-Space-Permits/sftu-nd43
+**Parking regulations (except non-metered color curb)**:https://data.sfgov.org/Transportation/Parking-regulations-except-non-metered-color-curb-/hi6h-neyh
+**Parking Management Districts**: https://data.sfgov.org/Transportation/Parking-Management-Districts/6vtc-mmhr
+**Residential parking permit eligibility parcels**: https://data.sfgov.org/Transportation/Residential-parking-permit-eligibility-parcels/i886-hxz9
+**Map of On-street Carshare Parking**: https://data.sfgov.org/Transportation/Map-of-On-street-Carshare-Parking/wr3x-ijzr
