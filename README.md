@@ -12,3 +12,4 @@
 
 
 **Graffiti**: https://data.sfgov.org/City-Infrastructure/Graffiti/vg6y-3pcr
+**Street_Defects**: https://data.sfgov.org/City-Infrastructure/Street_Defects/33h6-36bw
