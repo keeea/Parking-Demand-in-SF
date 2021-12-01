@@ -9,3 +9,6 @@
  - **Street and Sidewalk Cleaning**: https://data.sfgov.org/City-Management-and-Ethics/Street-and-Sidewalk-Cleaning/h3eg-w3pj
  - Map of Sidewalk Widths (https://data.sfgov.org/Transportation/Map-of-Sidewalk-Widths/ygcm-bt3x)
  - Map of Police Department Incident Reports: 2018 to Present(https://data.sfgov.org/Public-Safety/Map-of-Police-Department-Incident-Reports-2018-to-/jq29-s5wp) 可能没有geometry
+
+
+**Graffiti**: https://data.sfgov.org/City-Infrastructure/Graffiti/vg6y-3pcr
