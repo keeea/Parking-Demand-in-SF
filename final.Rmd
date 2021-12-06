@@ -466,8 +466,11 @@ ggplot() +
 fill_viridis() +
 
 ```{r Joining parking management district to the fishnet}
-management_net <- st_join(meter_net,parking_district) %>% 
-  dplyr::select(uniqueID, pm_district_name) 
+management_net <- st_join(st_centroid(meter_net),parking_district) %>% 
+  st_drop_geometry() %>% 
+  right_join(meter_net) %>% 
+  st_sf() %>% 
+  dplyr::select(uniqueID, pm_district_name)
 
 ggplot() +
   geom_sf(data = management_net, aes(fill = pm_district_name), color = NA) +
