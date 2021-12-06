@@ -54,8 +54,6 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 ## Loading and wrangling data
 
-Load data from Sisun
-
 ```{r load data1}
 # import SF neighborhood boundaries
 neighborhood_sf <-
@@ -76,7 +74,7 @@ meters_sf <-
 
 # import street park records in a specific time span
 street_parks <- 
-  read.socrata("https://data.sfgov.org/resource/imvp-dq3v.json?$where=session_start_dt between '2019-01-01T12:00:00' and '2019-01-01T14:00:00'") %>%
+  read.socrata("https://data.sfgov.org/resource/imvp-dq3v.json?$where=session_start_dt between '2021-07-16T00:00:00' and '2021-08-27T00:00:00'") %>%
   na.omit() %>%
   merge(meters, by="post_id")
 
@@ -98,21 +96,40 @@ off_parking_sf <-
 
 # sidewalk width
 sidewalk <-
-  st_read("C:/Users/CSS/Desktop/508-final/MTA.sidewalk_widths.geojson") %>%
-  st_as_sf(coords = geometry, crs = 4326, agr = "constant")  %>%
-  st_transform('ESRI:102243')
+  st_read("local_data_source/MTA.sidewalk_widths.geojson") %>%
+  st_as_sf(coords = geometry, crs = 4326, agr = "constant") %>%
+  mutate(sidewalk_f=as.numeric(as.character(sidewalk_f))) %>% 
+  st_transform('ESRI:102243') 
+sidewalk <- sidewalk %>% 
+  filter(sidewalk_f<=0|sidewalk_f>40) %>% 
+  mutate(sidewalk_f=13) %>% 
+  rbind(
+    filter(sidewalk,sidewalk_f>0&sidewalk_f<=40)
+  ) 
 
 # speed limits
 street_speed <-
-  st_read("C:/Users/CSS/Desktop/508-final/Speed Limits per Street Segment.geojson") %>%
+  st_read("local_data_source/Speed Limits per Street Segment.geojson") %>%
   st_as_sf(coords = geometry, crs = 4326, agr = "constant") %>%
   dplyr::select(cnn, st_type, speedlimit, street, from_st, to_st, geometry) %>%
   na.omit() %>%
   st_transform('ESRI:102243')
+street_speed <- street_speed %>% 
+  filter(speedlimit==0) %>% 
+  mutate(speedlimit=25) %>% 
+  rbind(
+    filter(street_speed,speedlimit!=0&speedlimit!=99)
+  ) %>% 
+  rbind(
+    street_speed %>% 
+      filter(speedlimit==99) %>% 
+      mutate(speedlimit=25)
+  )
+  
 
 # incidents
 incidents <-
-  read.socrata("https://data.sfgov.org/resource/wg3w-h783.json?$where=incident_date between '2021-07-16T00:00:00.000' and '2021-08-26T00:00:00.000'") %>%
+  read.socrata("https://data.sfgov.org/resource/wg3w-h783.json?$where=incident_date between '2021-07-16T00:00:00' and '2021-08-27T00:00:00'") %>%
   dplyr::select(incident_date, incident_day_of_week, incident_id, report_type_code, 
                 incident_category, police_district, analysis_neighborhood, latitude, longitude) %>%
   na.omit() %>%
@@ -150,15 +167,6 @@ SF_census <-
   st_transform('ESRI:102243')
 
 
-street_parks_0708 <- 
-  read.socrata("https://data.sfgov.org/resource/imvp-dq3v.json?$where=session_start_dt between '2021-07-08T12:00:00' and '2021-07-08T12:15:00'") %>%
-  na.omit() %>%
-  mutate(week = week(session_start_dt),
-         dotw = wday(session_start_dt, label = TRUE)) %>%
-  merge(meters, by="post_id") %>%
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
-  st_transform('ESRI:102243')
-
 # select the study regions
 selected_nhoods_list = c("North Beach", "Russian Hill", "Nob Hill", "Chinatown",
                     "Financial District/South Beach", "Tenderloin", "South of Market")
@@ -181,8 +189,8 @@ street_clean <- read_csv("local_data_source/Street_and_Sidewalk_Cleaning_part.cs
 street_clean <- street_clean %>% 
   na.omit() %>% 
   filter(x!="0"&y!="0") %>% 
-  dplyr::select(time) %>% 
   st_as_sf(coords=c("y","x"), crs = 4326, agr = "constant") %>%
+  dplyr::select(geometry) %>% 
   st_transform('ESRI:102243')
 
 # Graffiti 
@@ -195,16 +203,18 @@ graffiti <- graffiti%>%
   st_transform('ESRI:102243')
 
 # Blocked Bike Lanes and Double Parking
-parking_violation <- read.socrata("https://data.sfgov.org/resource/ihm3-5gmc.json?$where=requested_datetime between '2021-07-16T00:00:00' and '2021-08-27T00:00:00'")
+parking_violation <- read.socrata("https://data.sfgov.org/resource/ihm3-5gmc.json?$where=requested_datetime between '2021-01-01T00:00:00' and '2021-08-27T00:00:00'")
 parking_violation <- parking_violation %>% 
   st_as_sf(coords = c("long", "lat"), crs = 4326) %>% 
   dplyr::select(requested_datetime) %>%   
   na.omit() %>%
   st_transform('ESRI:102243')
 
+
 # Parking Management Districts
 parking_district <- st_read("https://data.sfgov.org/resource/6vtc-mmhr.geojson") %>% 
-  dplyr::select(pm_district_name)  
+  dplyr::select(pm_district_name) %>% 
+  st_transform('ESRI:102243') 
 
 #on street shared car parking
 careshare_park <- read.socrata("https://data.sfgov.org/resource/g2t6-cyw6.json") 
@@ -216,19 +226,21 @@ careshare_park <- careshare_park %>%
   st_transform('ESRI:102243')
 
 # retail places
-business <- read.socrata("https://data.sfgov.org/resource/g8m3-pdis.json")
+business <- st_read("local_data_source/Business_Locations.geojson")
+
+# retail places
 retail_spot <- business  %>% 
-  filter(is.na(location_end_date)) %>% 
   filter(grepl("4400-4599",naic_code)) %>%
-#  dplyr::select(ttxid, naic_code) %>% 
-  distinct()
+  dplyr::select(geometry) %>% 
+  distinct()%>% 
+  st_transform('ESRI:102243')
 
 # food places
 food_spot <- business  %>% 
-  filter(is.na(location_end_date)) %>% 
   filter(grepl("7220-7229",naic_code)) %>% 
-#  dplyr::select(ttxid, naic_code) %>% 
-  distinct()
+  dplyr::select(geometry) %>% 
+  distinct()%>% 
+  st_transform('ESRI:102243')
 ```
 
 # Feature engineering
@@ -266,7 +278,8 @@ meter_net <-
 ggplot() +
   geom_sf(data = meter_net, aes(fill = countMeters), color = NA) +
   scale_fill_viridis() +
-  labs(title = "Fishnets with meters inside")
+  labs(title = "Fishnets with meters inside")+
+    mapTheme()
 
 meter_net <-
   meter_net %>%
@@ -278,24 +291,23 @@ meter_net <-
 
 ```{r join parking data into fishnet}
 parking_net <- 
-  dplyr::select(street_parks_0708) %>% 
+  dplyr::select(street_parks) %>% 
   mutate(countPark = 1) %>% 
   aggregate(., meter_net, sum) %>%
-  mutate(countPark = replace_na(countPark, 0),
-         uniqueID = rownames(.),
-         cvID = sample(round(nrow(meter_net) / 8), 
-                       size=nrow(meter_net), replace = TRUE))
+  mutate(countPark = replace_na(countPark, 0))
 
 ggplot() +
   geom_sf(data = parking_net, aes(fill = countPark), color = NA) +
   scale_fill_viridis() +
-  labs(title = "Parking Counts in the fishnet")
+  labs(title = "Parking Counts in the fishnet")+
+    mapTheme()
 
 # plot parking information in grids with meters
 ggplot(parking_net, aes(countPark)) + 
   geom_histogram(binwidth = 1, color = 'black', fill='white') +
   labs(title = "Parking Number Distribution in Each Fishnet Grid",
-       subtitle = "2021-07-08 12:00-12:15")
+       subtitle = "2021-07-08 12:00-12:15")+
+  plotTheme()
 
 ```
 
@@ -303,90 +315,283 @@ ggplot(parking_net, aes(countPark)) +
 
 ```{r Joining police incidents to the fishnet}
 # put police incidents into fishnet grids
-incident_net <- 
-  dplyr::select(incidents) %>% 
-  mutate(countInci = 1) %>% 
-  aggregate(., meter_net, sum) %>%
-  mutate(countInci = replace_na(countInci, 0),
-         uniqueID = rownames(.),
-         cvID = sample(round(nrow(meter_net) / 8), 
-                       size=nrow(meter_net), replace = TRUE))
+incident_net <- incidents %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countIncident= sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
 
 ggplot() +
-  geom_sf(data = incident_net, aes(fill = countInci), color = NA) +
+  geom_sf(data = incident_net, aes(fill = countIncident), color = NA) +
   scale_fill_viridis() +
-  labs(title = "Police Incidents in Fishnet Grids")
+  labs(title = "Police Incidents in Fishnet Grids")+
+    mapTheme()
 ```
 
-### ?Joining off-street parking to the fishnet
+### Joining street speeds to the fishnet
 
-```{r Joining off-street parking to the fishnet}
-# Off-street Parking
+```{r Joining street speeds to the fishnet}
+speed_net <- st_join(meter_net,street_speed) %>% 
+  dplyr::select(uniqueID, speedlimit) %>% 
+  mutate(speedlimit=as.numeric(as.character(speedlimit))) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(speedlimit=mean(speedlimit,na.rm=T)) %>% 
+  left_join(meter_net) %>% 
+  st_sf()
+
+
+ggplot() +
+  geom_sf(data = speed_net, aes(fill = speedlimit), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Street Speed in Fishnet Grids")+
+    mapTheme()
+```
+
+### Joining sidewalk width to the fishnet
+
+```{r Joining sidewalk width to the fishnet}
+width_net <- st_join(meter_net,sidewalk) %>% 
+  dplyr::select(uniqueID, sidewalk_f) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(sidewalk_width=mean(sidewalk_f,na.rm=T)) %>% 
+  left_join(meter_net) %>% 
+  st_sf()
+
+ggplot() +
+  geom_sf(data = width_net, aes(fill = sidewalk_width), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Sidewalk Width in Fishnet Grids")+
+    mapTheme()
+```
+
+### Joining neighborhood data to the fishnet
+
+```{r Joining neighborhood data to the fishnett}
+census_net <- st_join(meter_net,SF_census) %>% 
+  dplyr::select(uniqueID,  Percent_White, Mean_Commute_Time, Percent_Taking_Public_Trans) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(Percent_White=mean(Percent_White,na.rm=T),
+            Mean_Commute_Time=mean(Mean_Commute_Time,na.rm=T),
+            Percent_Taking_Public_Trans=mean(Percent_Taking_Public_Trans,na.rm=T)) %>% 
+  left_join(meter_net) %>% 
+  st_sf()
+
+census_net %>% 
+  dplyr::select(-Mean_Commute_Time) %>% 
+  gather(-uniqueID,-geometry,key=variable,value=value) %>% 
+  ggplot() +
+    geom_sf(aes(fill = value)) +
+    facet_wrap(~variable)+
+    scale_fill_viridis() +
+    labs(title = "Neighborhood Data in Fishnet Grids")+
+    mapTheme()
+
+census_net %>% 
+  dplyr::select(Mean_Commute_Time) %>% 
+  ggplot() +
+    geom_sf(aes(fill = Mean_Commute_Time)) +
+    scale_fill_viridis() +
+    labs(title = "Neighborhood Data in Fishnet Grids")+
+    mapTheme()
+```
+
+### Joining cleaning request to the fishnet
+
+```{r Joining cleaning request to the fishnet}
+clean_net <- street_clean %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countClean = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+ggplot() +
+  geom_sf(data = clean_net, aes(fill = countClean), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Street Cleaning Request in Fishnet Grids")+
+  mapTheme()
+```
+
+### Joining Graffiti to the fishnet
+
+```{r Joining Graffiti to the fishnet}
+graffiti_net <- graffiti %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countGraffiti = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+ggplot() +
+  geom_sf(data = graffiti_net, aes(fill = countGraffit), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Graffiti in Fishnet Grids")+
+  mapTheme()
+```
+
+### Joining parking violation to the fishnet
+
+```{r Joining parking violation to the fishnet}
+parking_violation_net <- parking_violation %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countViolation = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+ggplot() +
+  geom_sf(data = parking_violation_net, aes(fill = countViolation), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Parking Violation Request in Fishnet Grids")+
+  mapTheme()
+```
+
+### Joining parking management district to the fishnet
+
+fill_viridis() +
+
+```{r Joining parking management district to the fishnet}
+management_net <- st_join(meter_net,parking_district) %>% 
+  dplyr::select(uniqueID, pm_district_name) 
+
+ggplot() +
+  geom_sf(data = management_net, aes(fill = pm_district_name), color = NA) +
+  labs(title = "Parking Management District in Fishnet Grids")+
+    mapTheme()
+```
+
+### 
+
+### Joining shared car parking to the fishnet
+
+```{r Joining shared car parking to the fishnet}
+carshare_net <- careshare_park %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countCarshare = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+ggplot() +
+  geom_sf(data = carshare_net, aes(fill = countCarshare), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Shared Car Parking in Fishnet Grids")+
+  mapTheme()
+```
+
+###  Joining retail spots to the fishnet
+
+```{r Joining retail spots to the fishnet}
+retail_net <- retail_spot %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countRetail = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+ggplot() +
+  geom_sf(data = retail_net, aes(fill = countRetail), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Retail Spots in Fishnet Grids")+
+  mapTheme()
+```
+
+### Joining food spots to the fishnet
+
+```{r Joining food spots to the fishnet}
+food_net <- food_spot %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countFood = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+ggplot() +
+  geom_sf(data = food_net, aes(fill = countFood), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "Food Spots in Fishnet Grids")+
+  mapTheme()
+```
+
+### Combining all other factors into one fishnet
+
+```{r Combining all factors into one fishnet}
 centroid_fishnet <- st_centroid(meter_net) %>%
   dplyr::select(uniqueID, geometry)
 
-ggplot() + 
-  geom_sf(data = study_area) +
-  geom_sf(data = centroid_fishnet, colour="red", size=0.05, show.legend = "point") +
-  labs(title= "Centroid of Fishnet Grids")
-
-```
-
-### ?Combining all factors into one fishnet
-
-```{r Combining all factors into one fishnet}
 # put all variables into fishnet
 st_c <- st_coordinates
 var_net <-
   parking_net %>% 
   dplyr::select(uniqueID, geometry, countPark) %>%
   mutate(
-    off_parking.nn = nn_function(st_c(centroid_fishnet), st_c(off_parking_sf), 2),
-    Incident = incident_net$countInci
-  )
+    off_parking.nn = nn_function(st_c(centroid_fishnet), st_c(off_parking_sf), 2)) %>% 
+  left_join(carshare_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(census_net %>% st_drop_geometry() , by = "uniqueID") %>% 
+  left_join(clean_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(food_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(graffiti_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(incident_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(management_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(parking_violation_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(retail_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(speed_net %>% st_drop_geometry(), by = "uniqueID") %>% 
+  left_join(width_net %>% st_drop_geometry(), by = "uniqueID") 
 
 ```
+
+### 
 
 ## Creating the space/time panel
 
 ```{r Creating the space/time panel}
 # create space-time panel
-street_parks_0709 <- 
-  read.socrata("https://data.sfgov.org/resource/imvp-dq3v.json?$where=session_start_dt between '2021-07-09T00:00:00' and '2021-07-09T23:00:00'") %>%
-  na.omit() %>%
+street_parks.final<- street_parks_sf %>% 
+  mutate(session_start_dt = ymd_hms(session_start_dt)) %>% 
+  filter(hour(session_start_dt) >= 9 & hour(session_start_dt) <=18) %>% 
+
+street_parks.final <- street_parks.final[sample(nrow(street_parks),100000),]  
+
+street_parks.final <- street_parks.final %>% 
   mutate(week = week(session_start_dt),
          dotw = wday(session_start_dt, label = TRUE),
          interval60 = floor_date(ymd_hms(session_start_dt), unit = "hour"),
-         interval15 = floor_date(ymd_hms(session_start_dt), unit = "15 mins")) %>%
-  merge(meters, by="post_id") %>%
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
-  st_transform('ESRI:102243')
+         interval30 = floor_date(ymd_hms(session_start_dt), unit = "30 mins")) %>%
+  merge(meters, by="post_id") 
+  dplyr::select(post_id, session_start_dt, gross_paid_amt, interval60, interval30)
 
 street_park_grid <-
-  st_join(
-    street_parks_0709,
-    var_net%>%
-      dplyr::select(uniqueID, geometry, off_parking.nn, Incident),
-    join=st_intersects,
-    left = TRUE
-  ) %>%
+  st_join(var_net,street_parks) %>%
   na.omit() 
 
 park.panel <- 
-  expand.grid(interval60=unique(street_park_grid$interval60), 
+  expand.grid(interval60=unique(street_park_grid$interval30), 
               uniqueID = unique(street_park_grid$uniqueID)) %>%
-  left_join(., street_park_grid %>%
-              dplyr::select(post_id, session_start_dt, gross_paid_amt, 
-                            interval60, interval15, 
-                            uniqueID, off_parking.nn, Incident)%>%
-              distinct() %>%
-              group_by(uniqueID))
+  left_join(., street_park_grid %>%distinct())
 
 park.panel.count <- 
   street_park_grid %>%
   mutate(Park_Counter = 1) %>%
   right_join(park.panel) %>% 
-  group_by(interval60, uniqueID) %>%
+  group_by(interval30, uniqueID) %>%
   summarize(Park_Count = sum(Park_Counter, na.rm=T)) %>%
   ungroup() %>%
   mutate(week = week(interval60),
