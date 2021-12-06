@@ -567,9 +567,9 @@ var_net <-
 
 ```{r Creating the space/time panel}
 # create space-time panel
-street_parks_sf <- street_parks_sf[sample(nrow(street_parks_sf),100000),]  
+street_parks.final <- street_parks_sf[sample(nrow(street_parks_sf),200000),]  
 
-street_parks.final<- street_parks_sf %>% 
+street_parks.final<- street_parks.final %>% 
   mutate(session_start_dt = ymd_hms(session_start_dt)) %>% 
   filter(hour(session_start_dt) >= 9 & hour(session_start_dt) <=18)
 
