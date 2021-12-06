@@ -290,11 +290,14 @@ meter_net <-
 ### Joining parking data to the fishnet
 
 ```{r join parking data into fishnet}
-parking_net <- 
-  dplyr::select(street_parks) %>% 
-  mutate(countPark = 1) %>% 
-  aggregate(., meter_net, sum) %>%
-  mutate(countPark = replace_na(countPark, 0))
+parking_net <- street_parks_sf %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countPark = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf()
 
 ggplot() +
   geom_sf(data = parking_net, aes(fill = countPark), color = NA) +
@@ -433,7 +436,7 @@ graffiti_net <- graffiti %>%
   st_sf() 
 
 ggplot() +
-  geom_sf(data = graffiti_net, aes(fill = countGraffit), color = NA) +
+  geom_sf(data = graffiti_net, aes(fill = countGraffiti), color = NA) +
   scale_fill_viridis() +
   labs(title = "Graffiti in Fishnet Grids")+
   mapTheme()
@@ -564,50 +567,52 @@ var_net <-
 
 ```{r Creating the space/time panel}
 # create space-time panel
+street_parks_sf <- street_parks_sf[sample(nrow(street_parks_sf),100000),]  
+
 street_parks.final<- street_parks_sf %>% 
   mutate(session_start_dt = ymd_hms(session_start_dt)) %>% 
-  filter(hour(session_start_dt) >= 9 & hour(session_start_dt) <=18) %>% 
-
-street_parks.final <- street_parks.final[sample(nrow(street_parks),100000),]  
+  filter(hour(session_start_dt) >= 9 & hour(session_start_dt) <=18)
 
 street_parks.final <- street_parks.final %>% 
   mutate(week = week(session_start_dt),
          dotw = wday(session_start_dt, label = TRUE),
          interval60 = floor_date(ymd_hms(session_start_dt), unit = "hour"),
          interval30 = floor_date(ymd_hms(session_start_dt), unit = "30 mins")) %>%
-  merge(meters, by="post_id") 
+  merge(meters, by="post_id") %>% 
   dplyr::select(post_id, session_start_dt, gross_paid_amt, interval60, interval30)
 
 street_park_grid <-
-  st_join(var_net,street_parks) %>%
+  st_join(var_net,street_parks.final) %>%
   na.omit() 
 
 park.panel <- 
-  expand.grid(interval60=unique(street_park_grid$interval30), 
-              uniqueID = unique(street_park_grid$uniqueID)) %>%
-  left_join(., street_park_grid %>%distinct())
+  expand.grid(interval30=unique(street_park_grid$interval30), 
+              uniqueID = unique(street_park_grid$uniqueID)) 
 
 park.panel.count <- 
   street_park_grid %>%
+  st_drop_geometry() %>% 
   mutate(Park_Counter = 1) %>%
-  right_join(park.panel) %>% 
+  right_join(park.panel,by=c("uniqueID","interval30")) %>% 
   group_by(interval30, uniqueID) %>%
-  summarize(Park_Count = sum(Park_Counter, na.rm=T)) %>%
+  summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
   ungroup() %>%
-  mutate(week = week(interval60),
-         dotw = wday(interval60, label = TRUE))
+  mutate(week = week(interval30),
+         dotw = wday(interval30, label = TRUE)) %>% 
+  left_join(var_net) %>% 
+  st_sf()
 
 
 # add time lag to the panel
 park.panel.lag <- 
   park.panel.count %>% 
-  arrange(interval60, uniqueID) %>% 
-  mutate(lagHour = dplyr::lag(Park_Count,1),
-         lag2Hours = dplyr::lag(Park_Count,2),
-         lag3Hours = dplyr::lag(Park_Count,3)) %>%
-  mutate(day = yday(interval60))
+  arrange(interval30, uniqueID) %>% 
+  mutate(lagHour = dplyr::lag(Real_Count,1),
+         lag2Hours = dplyr::lag(Real_Count,2),
+         lag3Hours = dplyr::lag(Real_Count,3)) %>%
+  mutate(day = yday(interval30))
 
-ggplot(park.panel.lag, aes(interval60, Park_Count)) + 
+ggplot(park.panel.lag, aes(interval30, Real_Count)) + 
   geom_line() +
   scale_colour_manual(values = palette2) +
   labs(title="On-street Car Parks per hour, SF, 2021-07-09",
