@@ -203,7 +203,7 @@ graffiti <- graffiti%>%
   st_transform('ESRI:102243')
 
 # Blocked Bike Lanes and Double Parking
-parking_violation <- read.socrata("https://data.sfgov.org/resource/ihm3-5gmc.json?$where=requested_datetime between '2021-01-01T00:00:00' and '2021-08-27T00:00:00'")
+parking_violation <- read.socrata("https://data.sfgov.org/resource/ihm3-5gmc.json?$where=requested_datetime between '2021-07-16T00:00:00' and '2021-08-27T00:00:00'")
 parking_violation <- parking_violation %>% 
   st_as_sf(coords = c("long", "lat"), crs = 4326) %>% 
   dplyr::select(requested_datetime) %>%   
@@ -466,8 +466,11 @@ ggplot() +
 fill_viridis() +
 
 ```{r Joining parking management district to the fishnet}
-management_net <- st_join(meter_net,parking_district) %>% 
-  dplyr::select(uniqueID, pm_district_name) 
+management_net <- st_join(st_centroid(meter_net),parking_district) %>% 
+  st_drop_geometry() %>% 
+  right_join(meter_net) %>% 
+  st_sf() %>% 
+  dplyr::select(uniqueID, pm_district_name)
 
 ggplot() +
   geom_sf(data = management_net, aes(fill = pm_district_name), color = NA) +
@@ -567,9 +570,9 @@ var_net <-
 
 ```{r Creating the space/time panel}
 # create space-time panel
-street_parks_sf <- street_parks_sf[sample(nrow(street_parks_sf),100000),]  
+street_parks.final <- street_parks_sf[sample(nrow(street_parks_sf),200000),]  
 
-street_parks.final<- street_parks_sf %>% 
+street_parks.final<- street_parks.final %>% 
   mutate(session_start_dt = ymd_hms(session_start_dt)) %>% 
   filter(hour(session_start_dt) >= 9 & hour(session_start_dt) <=18)
 
@@ -577,28 +580,28 @@ street_parks.final <- street_parks.final %>%
   mutate(week = week(session_start_dt),
          dotw = wday(session_start_dt, label = TRUE),
          interval60 = floor_date(ymd_hms(session_start_dt), unit = "hour"),
-         interval30 = floor_date(ymd_hms(session_start_dt), unit = "30 mins")) %>%
+         interval15 = floor_date(ymd_hms(session_start_dt), unit = "15 mins")) %>%
   merge(meters, by="post_id") %>% 
-  dplyr::select(post_id, session_start_dt, gross_paid_amt, interval60, interval30)
+  dplyr::select(post_id, session_start_dt, gross_paid_amt, interval60, interval15)
 
 street_park_grid <-
   st_join(var_net,street_parks.final) %>%
   na.omit() 
 
 park.panel <- 
-  expand.grid(interval30=unique(street_park_grid$interval30), 
+  expand.grid(interval15=unique(street_park_grid$interval15), 
               uniqueID = unique(street_park_grid$uniqueID)) 
 
 park.panel.count <- 
   street_park_grid %>%
   st_drop_geometry() %>% 
   mutate(Park_Counter = 1) %>%
-  right_join(park.panel,by=c("uniqueID","interval30")) %>% 
-  group_by(interval30, uniqueID) %>%
+  right_join(park.panel,by=c("uniqueID","interval15")) %>% 
+  group_by(interval15, uniqueID) %>%
   summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
   ungroup() %>%
-  mutate(week = week(interval30),
-         dotw = wday(interval30, label = TRUE)) %>% 
+  mutate(week = week(interval15),
+         dotw = wday(interval15, label = TRUE)) %>% 
   left_join(var_net) %>% 
   st_sf()
 
@@ -606,15 +609,18 @@ park.panel.count <-
 # add time lag to the panel
 park.panel.lag <- 
   park.panel.count %>% 
-  arrange(interval30, uniqueID) %>% 
-  mutate(lagHour = dplyr::lag(Real_Count,1),
+  arrange(interval15, uniqueID) %>% 
+  mutate(lag15min =  dplyr::lag(Real_Count,0.25),        #cannot use dplyr::lag() to create a 15-minute lag
+         lagHour = dplyr::lag(Real_Count,1),
          lag2Hours = dplyr::lag(Real_Count,2),
          lag3Hours = dplyr::lag(Real_Count,3)) %>%
-  mutate(day = yday(interval30))
+  mutate(day = yday(interval15))
 
-ggplot(park.panel.lag, aes(interval30, Real_Count)) + 
+ggplot(park.panel.lag, aes(interval15, Real_Count)) + 
   geom_line() +
   scale_colour_manual(values = palette2) +
   labs(title="On-street Car Parks per hour, SF, 2021-07-09",
        x="Time", y="Number of Parking Records")
 ```
+
+
