@@ -598,7 +598,7 @@ park.panel.count <-
   mutate(Park_Counter = 1) %>%
   right_join(park.panel,by=c("uniqueID","interval15")) %>% 
   group_by(interval15, uniqueID) %>%
-  summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
+  summarize(Real_Count = mean(Park_Counter, na.rm=T)) %>%
   ungroup() %>%
   mutate(week = week(interval15),
          dotw = wday(interval15, label = TRUE)) %>% 
