@@ -589,52 +589,117 @@ street_park_grid <-
   na.omit() 
 
 park.panel <- 
-  expand.grid(interval15=unique(street_park_grid$interval15), 
+  expand.grid(interval60=unique(street_park_grid$interval60), 
               uniqueID = unique(street_park_grid$uniqueID)) 
 
 park.panel.count <- 
   street_park_grid %>%
   st_drop_geometry() %>% 
   mutate(Park_Counter = 1) %>%
-  right_join(park.panel,by=c("uniqueID","interval15")) %>% 
-  group_by(interval15, uniqueID) %>%
+  right_join(park.panel,by=c("uniqueID","interval60")) %>% 
+  group_by(interval60, uniqueID) %>%
   summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
   ungroup() %>%
-  mutate(week = week(interval15),
-         dotw = wday(interval15, label = TRUE)) %>% 
+  mutate(week = week(interval60),
+         dotw = wday(interval60, label = TRUE)) %>% 
   left_join(var_net) %>% 
   st_sf()
 
-park.panel.mean <- 
-  street_park_grid %>%
-  st_drop_geometry() %>% 
-  mutate(Park_Counter = 1) %>%
-  right_join(park.panel,by=c("uniqueID","interval15")) %>% 
-  group_by(interval15, uniqueID) %>%
-  summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
-  ungroup() %>%
-  mutate(week = week(interval15),
-         dotw = wday(interval15, label = TRUE)) %>% 
-  left_join(meter_net) %>%
-  left_join(var_net) %>% 
-  mutate(mean = Real_Count/countMeters) %>%
-  st_sf() 
+# park.panel.mean <- 
+#   street_park_grid %>%
+#   st_drop_geometry() %>% 
+#   mutate(Park_Counter = 1) %>%
+#   right_join(park.panel,by=c("uniqueID","interval15")) %>% 
+#   group_by(interval15, uniqueID) %>%
+#   summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
+#   ungroup() %>%
+#   mutate(week = week(interval15),
+#          dotw = wday(interval15, label = TRUE)) %>% 
+#   left_join(meter_net) %>%
+#   left_join(var_net) %>% 
+#   mutate(mean = Real_Count/countMeters) %>%
+#   st_sf() 
 
 # add time lag to the panel
 park.panel.lag <- 
-  park.panel.mean %>% 
-  arrange(interval15, uniqueID) %>% 
-  mutate(#lag15min =  dplyr::lag(Real_Count,0.25),        #cannot use dplyr::lag() to create a 15-minute lag
+  park.panel.count %>% 
+  arrange(interval60, uniqueID) %>% 
+  mutate(
          lagHour = dplyr::lag(Real_Count,1),
          lag2Hours = dplyr::lag(Real_Count,2),
-         lag3Hours = dplyr::lag(Real_Count,3)) %>%
-  mutate(day = yday(interval15))
+         lag3Hours = dplyr::lag(Real_Count,3),
+         lagDay = dplyr::lag(Real_Count,24)) %>%
+  mutate(day = yday(interval60))
 
-ggplot(park.panel.lag, aes(interval15, Real_Count)) + 
+ggplot(park.panel.lag, aes(interval60, Real_Count)) + 
   geom_line() +
   scale_colour_manual(values = palette2) +
   labs(title="On-street Car Parks per hour, SF, 2021-07-09",
        x="Time", y="Number of Parking Records")
 ```
+
+
+```{r Spliting data into train/test sets}
+park.Train <- filter(park.panel.lag, week <= 32)
+park.Test <- filter(park.panel.lag, week > 32)
+```
+
+
+```{r Creating linear models}
+linear_reg7 <- 
+  lm(log_count ~  hour(interval60) + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay,  data=park.Train)
+
+linear_reg8 <- 
+  lm(log_count ~  hour(interval60) + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay 
+     + off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans
+     + countClean + countFood + countGraffiti + countIncident + countViolation + countRetail
+     + pm_district_name + speedlimit + sidewalk_width,
+     data=park.Train)
+
+# summary(linear_reg8)
+```
+
+
+```{r Testing accuracy of the models}
+park.Test.weekNest <- 
+  park.Test %>%
+  nest(-week) 
+
+model_pred <- function(dat, fit){
+  pred <- predict(fit, newdata = dat)}
+
+week_predictions <- 
+  park.Test.weekNest %>% 
+  mutate(
+    #linear_MEAN = map(.x = data, fit = linear_reg1, .f = model_pred),
+    #poisson_MEAN = map(.x = data, fit = poisson_reg1, .f = model_pred),
+    #linear_COUNT = map(.x = data, fit = linear_reg2, .f = model_pred),
+    #poisson_COUNT = map(.x = data, fit = poisson_reg2, .f = model_pred),
+    #linear_logMEAN = map(.x = data, fit = linear_reg3, .f = model_pred),
+    #poisson_logMEAN = map(.x = data, fit = poisson_reg3, .f = model_pred),
+    linear_logCOUNT = map(.x = data, fit = linear_reg7, .f = model_pred),
+    #poisson_logCOUNT = map(.x = data, fit = poisson_reg4, .f = model_pred),
+    linear_all = map(.x = data, fit = linear_reg8, .f = model_pred),
+  ) %>% 
+  gather(Regression, Prediction, -data, -week) %>%
+  mutate(Observed = map(data, pull, mean),
+         Absolute_Error = map2(Observed, Prediction,  ~ abs(.x - .y)),
+         MAE = map_dbl(Absolute_Error, mean, na.rm = TRUE),
+         sd_AE = map_dbl(Absolute_Error, sd, na.rm = TRUE))
+
+```
+
+
+```{r A backup solution to check accuracy}
+abs_error_reg7 <-
+  abs(predict(linear_reg7, park.Test) - park.Test$log_count)
+abs_error_reg8 <-
+  abs(predict(linear_reg8, park.Test) - park.Test$log_count)
+mean(abs_error_reg7)
+mean(abs_error_reg8)
+mean(park.Test$log_count)
+```
+
+
 
 
