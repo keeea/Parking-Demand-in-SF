@@ -283,7 +283,7 @@ ggplot() +
 
 meter_net <-
   meter_net %>%
-  dplyr::select(geometry, uniqueID)
+  dplyr::select(geometry, uniqueID, countMeters)
 
 ```
 
@@ -598,19 +598,33 @@ park.panel.count <-
   mutate(Park_Counter = 1) %>%
   right_join(park.panel,by=c("uniqueID","interval15")) %>% 
   group_by(interval15, uniqueID) %>%
-  summarize(Real_Count = mean(Park_Counter, na.rm=T)) %>%
+  summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
   ungroup() %>%
   mutate(week = week(interval15),
          dotw = wday(interval15, label = TRUE)) %>% 
   left_join(var_net) %>% 
   st_sf()
 
+park.panel.mean <- 
+  street_park_grid %>%
+  st_drop_geometry() %>% 
+  mutate(Park_Counter = 1) %>%
+  right_join(park.panel,by=c("uniqueID","interval15")) %>% 
+  group_by(interval15, uniqueID) %>%
+  summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(week = week(interval15),
+         dotw = wday(interval15, label = TRUE)) %>% 
+  left_join(meter_net) %>%
+  left_join(var_net) %>% 
+  mutate(mean = Real_Count/countMeters) %>%
+  st_sf() 
 
 # add time lag to the panel
 park.panel.lag <- 
-  park.panel.count %>% 
+  park.panel.mean %>% 
   arrange(interval15, uniqueID) %>% 
-  mutate(lag15min =  dplyr::lag(Real_Count,0.25),        #cannot use dplyr::lag() to create a 15-minute lag
+  mutate(#lag15min =  dplyr::lag(Real_Count,0.25),        #cannot use dplyr::lag() to create a 15-minute lag
          lagHour = dplyr::lag(Real_Count,1),
          lag2Hours = dplyr::lag(Real_Count,2),
          lag3Hours = dplyr::lag(Real_Count,3)) %>%
