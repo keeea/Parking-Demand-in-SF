@@ -602,23 +602,10 @@ park.panel.count <-
   ungroup() %>%
   mutate(week = week(interval60),
          dotw = wday(interval60, label = TRUE)) %>% 
+  left_join(meter_net) %>%
   left_join(var_net) %>% 
+  mutate(mean = Real_Count/countMeters) %>%
   st_sf()
-
-# park.panel.mean <- 
-#   street_park_grid %>%
-#   st_drop_geometry() %>% 
-#   mutate(Park_Counter = 1) %>%
-#   right_join(park.panel,by=c("uniqueID","interval15")) %>% 
-#   group_by(interval15, uniqueID) %>%
-#   summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
-#   ungroup() %>%
-#   mutate(week = week(interval15),
-#          dotw = wday(interval15, label = TRUE)) %>% 
-#   left_join(meter_net) %>%
-#   left_join(var_net) %>% 
-#   mutate(mean = Real_Count/countMeters) %>%
-#   st_sf() 
 
 # add time lag to the panel
 park.panel.lag <- 
@@ -629,7 +616,11 @@ park.panel.lag <-
          lag2Hours = dplyr::lag(Real_Count,2),
          lag3Hours = dplyr::lag(Real_Count,3),
          lagDay = dplyr::lag(Real_Count,24)) %>%
-  mutate(day = yday(interval60))
+  mutate(day = yday(interval60), 
+         time = hour(interval60),
+         log_count = log(Real_Count + 1),
+         log_mean = log(mean+ 1)) %>%
+  st_drop_geometry()
 
 ggplot(park.panel.lag, aes(interval60, Real_Count)) + 
   geom_line() +
@@ -638,6 +629,7 @@ ggplot(park.panel.lag, aes(interval60, Real_Count)) +
        x="Time", y="Number of Parking Records")
 ```
 
+## Modeling
 
 ```{r Spliting data into train/test sets}
 park.Train <- filter(park.panel.lag, week <= 32)
@@ -647,10 +639,10 @@ park.Test <- filter(park.panel.lag, week > 32)
 
 ```{r Creating linear models}
 linear_reg7 <- 
-  lm(log_count ~  hour(interval60) + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay,  data=park.Train)
+  lm(log_count ~  time + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay,  data=park.Train)
 
 linear_reg8 <- 
-  lm(log_count ~  hour(interval60) + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay 
+  lm(log_count ~  time + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay 
      + off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans
      + countClean + countFood + countGraffiti + countIncident + countViolation + countRetail
      + pm_district_name + speedlimit + sidewalk_width,
@@ -687,18 +679,85 @@ week_predictions <-
          MAE = map_dbl(Absolute_Error, mean, na.rm = TRUE),
          sd_AE = map_dbl(Absolute_Error, sd, na.rm = TRUE))
 
+week_predictions
 ```
 
 
 ```{r A backup solution to check accuracy}
+# slightly different from the method above
 abs_error_reg7 <-
   abs(predict(linear_reg7, park.Test) - park.Test$log_count)
 abs_error_reg8 <-
   abs(predict(linear_reg8, park.Test) - park.Test$log_count)
+print("Mean Absolute Error for linear model 7 is")
 mean(abs_error_reg7)
+print("Mean Absolute Error for linear model 8 is")
 mean(abs_error_reg8)
-mean(park.Test$log_count)
+print("MAPE for linear model 7 is")
+mean(abs_error_reg7)/mean(park.Test$log_count)
+print("MAPE for linear model 7 is")
+mean(abs_error_reg8)/mean(park.Test$log_count)
 ```
+
+
+```{r Ploting the MAE }
+week_predictions %>%
+  dplyr::select(week, Regression, MAE) %>%
+  gather(Variable, MAE, -Regression, -week) %>%
+  ggplot(aes(week, MAE)) + 
+    geom_bar(aes(fill = Regression), position = "dodge", stat="identity") +
+    scale_fill_manual(values = palette5) +
+    labs(title = "Mean Absolute Errors by model specification and week") 
+```
+
+
+```{r Errors in time series}
+week_predictions %>% 
+    mutate(interval60 = map(data, pull, interval60),
+           uniqueID = map(data, pull, uniqueID)) %>%
+    dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+    unnest() %>%
+    gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%
+    group_by(Regression, Variable, interval60) %>%
+    summarize(Value = sum(Value)) %>%
+    ggplot(aes(interval60, Value, colour=Variable)) + 
+      geom_line(size = 1.1) + 
+      facet_wrap(~Regression, ncol=1) +
+      labs(title = "Predicted/Observed car parks in time series", subtitle = "San Francisco; test set of 2 weeks",  x = "Hour", y= "Car Parks") 
+```
+
+
+```{r Errors by Grids}
+
+```
+
+## Cross Validation
+
+```{r Cross Validation}
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+
+reg.cv1 <- 
+  train(log_count ~ ., data = park.Train %>% 
+          dplyr::select(log_count, 
+                        interval60 , dotw ,  uniqueID, lagHour, lag2Hours, lag3Hours, lagDay), 
+        method = "lm", trControl = fitControl, na.action = na.pass)
+
+reg.cv1
+reg.cv1$resample[1:5,]
+```
+
+
+```{r  Ploting the distribution of MAEs in CV}
+MAE_reg1 <- reg.cv1$resample
+ggplot(MAE_reg1, aes(x=MAE)) + 
+  geom_histogram(color="black", fill="white", binwidth = 0.02) +
+  xlim(0, 1) +
+  labs(title = "Histogram of MAEs of Cross Validation", subtitle = "Model: Linear regression 7",  x = "MAE", y= "Count") 
+
+```
+
+
 
 
 
