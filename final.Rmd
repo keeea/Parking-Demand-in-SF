@@ -728,7 +728,24 @@ week_predictions %>%
 
 
 ```{r Errors by Grids}
-
+error_grid <-
+  week_predictions %>% 
+  mutate(interval60 = map(data, pull, interval60),
+         uniqueID = map(data, pull, uniqueID)) %>%
+  dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+  unnest() %>%
+  filter(Regression == "linear_logCOUNT") %>%
+  group_by(uniqueID) %>%
+  summarize(MAE = mean(abs(Observed-Prediction), na.rm = TRUE))%>%
+  left_join(meter_net) %>%
+  dplyr::select(-countMeters) %>%
+  st_as_sf()
+  
+ggplot() +
+  geom_sf(data = error_grid, aes(fill = MAE), color = NA) +
+  scale_fill_viridis() +
+  labs(title = "MAE by Grids")+
+  mapTheme()
 ```
 
 ## Cross Validation
