@@ -1,0 +1,32 @@
+{
+    "id": "A5FE1225",
+    "path": "~/Desktop/UPENN_COURSE/MUSA_508/assignment/final_pproject/1209_3.Rmd",
+    "project_path": null,
+    "type": "r_markdown",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1639101819983.0,
+    "source_on_save": false,
+    "relative_order": 7,
+    "properties": {
+        "chunk_output_type": "inline",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "746,1",
+        "scrollLine": "0",
+        "last_setup_crc32": "9A28F0E8db229552",
+        "rmdVisualMode": "true",
+        "rmdVisualModeLocation": "23310:21332.22265625",
+        "rmdVisualWrapConfigured": "true",
+        "docOutlineVisible": "1"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1639105206,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1639108807384,
+    "read_only": false,
+    "read_only_alternatives": []
+}

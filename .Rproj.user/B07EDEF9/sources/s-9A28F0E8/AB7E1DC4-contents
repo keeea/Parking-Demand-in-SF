@@ -1,0 +1,438 @@
+---
+title: "Assignment 5"
+author: "Lan Xiao"
+date: "11/17/2021"
+output: 
+  html_document:
+    toc: yes
+    toc_float: TRUE
+    code_folding: hide
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, results = FALSE, message = FALSE)
+```
+
+```{r set package}
+# reduce data into those from Oct - Dec 2020
+library(tidyverse)
+library(sf)
+library(lubridate)
+library(tigris)
+library(gganimate)
+library(riem)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(mapview)
+library(gifski)
+
+options(tigris_class = "sf")
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+palette5 <- c("#91D490","#1a7328","#f2b4ae","#f26a4b","#f25d50", "#CB0017")
+palette5b <- c("#61a262","#1a7328","#f2b4ae","#f26a4b","#f25d50")
+
+palette4 <- c("#61a262","#1a7328","#f2b4ae","#f25d50")
+palette2 <- c("#61a262","#f26a4b")
+
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+```
+
+# Data Wrangling
+
+## Ride Trip
+
+Load five-week-long Metro Bike Share trip data from Metro bike in Los Angeles, trim into standard bike trips (exclusive of electric bike) from 2021/07/02 to 2021/08/05, and only keep pertinent field related with the trip start time, start station and end station. Then standardize trip start time into 15-minute interval, 60-minute interval, week of the year, and day of the week. Finally, we got 17,046 observations after omit all NA values.
+
+```{r load ride data}
+# load neighborhood 
+hood <- st_read("Neighborhood_Clusters.geojson")
+
+# load ride data
+ride.raw <- read.csv("202107-capitalbikeshare-tripdata.csv") %>% 
+  rbind(read.csv("202108-capitalbikeshare-tripdata.csv")) %>% 
+  filter(rideable_type == "classic_bike") 
+# trim into 7 columns
+ride <- ride.raw %>% 
+  dplyr::select(started_at, start_station_id,start_lat, start_lng, end_station_id, end_lat, end_lng)
+# convert into time
+ride <- ride %>% 
+  mutate(started_at = ymd_hms(started_at))
+# reduce data into those from 07.05 - 08.09
+ride <- ride %>% 
+  filter(started_at >= as.POSIXlt("2021-07-02 00:00:00") & started_at <= as.POSIXlt("2021-08-05 23:59:59"))
+# wrangle ride data
+ride2 <-ride %>% 
+  mutate(interval15 = floor_date(started_at, unit = "15 mins"),
+         interval30 = floor_date(started_at, unit = "30 mins"),
+         week = week(interval30),
+         dotw = wday(interval30, label=TRUE),
+         start_station_id = as.character(start_station_id),
+         end_station_id = as.character(end_station_id)) %>% 
+  na.omit() %>% 
+  st_as_sf(coords = c("start_lng", "start_lat"), crs = 4326) %>% 
+  filter(week != 32)
+
+ride2 <- ride2[hood,]
+```
+
+## Weather
+
+Considering that whether may affect ride ride demand, load weather data, get temperature, wind speed, precipitation on half-hour basis, and plot their trends over the study period.
+
+```{r load weather data,fig.width=9}
+# load
+weather.Data <- 
+  riem_measures(station = "KDCA", date_start = "2021-07-01", date_end = "2021-08-07")
+# replace na and standardize into different units
+weather.Panel <-  
+  weather.Data %>%
+  dplyr::select(valid, tmpf, p01i, sknt)%>%
+  replace(is.na(.), 0) %>%
+    mutate(interval30 = floor_date(ymd_h(substr(valid,1,13)), unit = "30 mins")) %>%
+    mutate(week = week(interval30),
+           dotw = wday(interval30, label=TRUE)) %>%
+    group_by(interval30) %>%
+    summarize(Temperature = max(tmpf),
+              Percipitation = sum(p01i),
+              Wind_Speed = max(sknt)) %>%
+    mutate(Temperature = ifelse(Temperature == 0, 42, Temperature))
+# plot time curve of 3 whether factors
+grid.arrange(top = "Weather Data - Chicago - October - December, 2020",
+  ggplot(weather.Panel, aes(interval30,Percipitation)) + geom_line() + 
+    labs(title="Percipitation", x="Hour", y="Percipitation") + plotTheme(),
+  ggplot(weather.Panel, aes(interval30,Wind_Speed)) + geom_line() + 
+    labs(title="Wind Speed", x="Hour", y="Wind Speed") + plotTheme(),
+  ggplot(weather.Panel, aes(interval30,Temperature)) + geom_line() + 
+    labs(title="Temperature", x="Hour", y="Temperature") + plotTheme())
+```
+
+## Create the final space/time panel
+
+Here, we choose 30 minutes as the temporal interval and share station as the spatial unit. create a complete panel with an observation for every possible space-time combination for the later analysis, and count trips for each combination. There are 276,377 possible combinations while there are only 17,046 actual observations, which means there is no trip for many situations of space-time combination.
+
+```{r study panel}
+study.panel <- 
+  expand.grid(interval30 = unique(ride2$interval30), 
+              start_station_id = unique(ride2$start_station_id)) 
+
+print("Number of time-space combinations:")
+nrow(study.panel)   
+```
+
+```{r count trips}
+ride.panel <- ride2 %>%
+  st_drop_geometry() %>% 
+  mutate(count = 1) %>% 
+  group_by(interval30, start_station_id) %>% 
+  summarize(Trip_Count = sum(count)) %>% 
+  right_join(.,study.panel,by = c("interval30", "start_station_id")) %>% 
+  replace(is.na(.),0) %>% 
+  mutate(week = week(interval30),
+        dotw = wday(interval30, label = TRUE),
+        interval60_weather = ceiling_date(interval30, unit = "hour")) %>%
+  left_join(.,weather.Panel, 
+            by = c("interval60_weather" = "interval30")) %>% # all weather data are in hourly interval
+  left_join(.,ride2 %>% dplyr::select(start_station_id) %>% distinct()) %>% 
+  replace(is.na(.),0) %>% 
+  mutate(Temperature = ifelse(Temperature == 0, 42, Temperature)) %>% 
+  st_sf()
+```
+
+## Split train and test data sets
+
+Split five-week data into a three-week train set (weeks 27 - 29), and a two-week test set (weeks 30 - 31), for later modeling. Notice that each week here is from Friday to next Thursday.
+
+```{r Split training and test}
+ride.Train <- filter(ride.panel, week < 30)
+ride.Test <- filter(ride.panel, week >= 30)
+```
+
+# Exploratory Analysis
+
+now, explore the ride share data for time, space, weather, and demographic relationships.
+
+## Serial autocorrelation
+
+There are various ways to test serial autocorrelation, one of them is the time series visualization.
+
+```{r time series,fig.width=9, fig.height=3}
+fridays <- ride.panel %>% 
+  st_drop_geometry() %>% 
+  filter(dotw == "Fri") %>% 
+  group_by(week) %>% 
+  summarize(min = min(interval30)) %>% 
+  distinct()
+
+Ind_Day <- as.POSIXct("2021-07-04 01:00:00")
+
+st_drop_geometry(rbind(
+  mutate(ride.Train, Legend = "Training"), 
+  mutate(ride.Test, Legend = "Testing"))) %>%
+      group_by(Legend, interval30) %>% 
+      summarize(Trip_Count = sum(Trip_Count)) %>%
+      ungroup() %>% 
+      ggplot(aes(interval30, Trip_Count, colour = Legend)) + geom_line() +
+        scale_colour_manual(values = c(palette5[3],palette5[5])) +
+        geom_vline(xintercept = Ind_Day, linetype = "dotted", size=1.5) +
+        geom_vline(data = fridays, aes(xintercept = min),size=0.2) +
+        labs(title="Rideshare trips by week: November-December",
+             subtitle="Dotted lines for Indepennce Day, vertical lines for Fridays", 
+             x="Day", y="Trip Count") +
+        plotTheme() + theme(panel.grid.major = element_blank())   
+```
+
+on top of time series visualization, we can also test the correlation between trip counts and their serial lags (the trip count in several hours ago in the same station). Scatter plots and correlation coefficients show that the correlation decreases with additional lag hours, but predictive power returns with the 1 day lag. So these serial lag features would be effective predictors in a model.
+
+```{r time lag correlation, fig.width=9, fig.height=3}
+# add temporal lag values
+ride.panel <- ride.panel %>% 
+    dplyr::select(-interval60_weather) %>% 
+    arrange(start_station_id, interval30) %>% 
+    group_by(start_station_id) %>% 
+    mutate(lag0.5Hour = dplyr::lag(Trip_Count,1),
+           lag1Hours = dplyr::lag(Trip_Count,2),
+           lag1.5Hours = dplyr::lag(Trip_Count,3),
+           lag2Hours = dplyr::lag(Trip_Count,4),
+           lag12Hours = dplyr::lag(Trip_Count,24),
+           lag1day = dplyr::lag(Trip_Count,48)) %>% 
+   ungroup() %>% 
+   st_sf()
+
+# transfer to long form
+plotData.lag <- ride.panel %>% 
+  st_drop_geometry() %>% 
+ #filter(week == 28) %>%
+  dplyr::select(starts_with("lag"), Trip_Count) %>%
+  gather(Variable, Value, -Trip_Count) %>%
+  mutate(Variable = fct_relevel(Variable, "lag0.5Hour","lag1Hours","lag1.5Hours",
+
+
+                                          "lag2Hours","lag12Hours","lag1day"))
+#caculaye cor and plot
+correlation.lag <-
+  group_by(plotData.lag, Variable) %>%
+    summarize(correlation = round(cor(Value, Trip_Count, use = "complete.obs"), 2)) 
+
+ggplot(plotData.lag, aes(Value, Trip_Count)) +
+  geom_point(size = 0.5, color = palette5b[1]) +
+  geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1, size = 1) +
+  geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+  facet_wrap(~Variable, nrow = 1, scales = "free") +
+  labs(title = "Rideshare trip count s a function of ime lags",
+       subtitle = "Five weeks in July & August, 2021") +
+  plotTheme()
+```
+
+### Spatial autocorrelation
+
+After observing temporal autocorrelation, we explore spatial autocorrelation here by mapping sum of rideshare trips both by station and week, and by station and day of the week. The spatial distribution pattern appears consistent, with trips concentrated in the center of Washington DC.
+
+```{r spatial correlation map by week,fig.width=9,fig.height=6}
+# group and sum
+plotData.sp <- group_by(ride.panel, week, start_station_id) %>%
+  summarize(Sum_Trip_Count = sum(Trip_Count)) %>%
+  ungroup() 
+
+# load neighborhood 
+hood <- st_read("Neighborhood_Clusters.geojson")
+
+  ggplot() + 
+    geom_sf(data = hood, size = 0.1, color = "grey50", fill = "transparent") +
+    geom_sf(data = st_union(hood), color = "black", size = 0.6, fill = "transparent") +
+    geom_sf(data = plotData.sp, aes(color = q5(Sum_Trip_Count)), size= 0.2) +
+    facet_wrap(~week, nrow = 1) +
+    scale_color_manual(values = palette5,
+                      labels = qBr(plotData.sp,"Sum_Trip_Count"),
+                      name = "Trip Count") +
+    labs(title="Sum of rideshare trips by station and week") +
+    mapTheme() + theme(legend.position = "bottom") 
+```
+
+```{r spatial correlation map by dotw,fig.width=9}
+# group and sum
+plotData.sp.2 <- group_by(ride.panel, dotw, start_station_id) %>%
+  summarize(Sum_Trip_Count = sum(Trip_Count)) %>%
+  ungroup() 
+
+# plot
+ggplot() + 
+    geom_sf(data = hood, size = 0.1, color = "grey50", fill = "transparent") +
+    geom_sf(data = st_union(hood), color = "black", size = 0.6, fill = "transparent") +
+    geom_sf(data = plotData.sp.2, aes(color = q5(Sum_Trip_Count)), size= 0.2) +
+    facet_wrap(~dotw, nrow = 1) +
+    scale_color_manual(values = palette5,
+                      labels = qBr(plotData.sp,"Sum_Trip_Count",0),
+                      name = "Trip Count\n(Quintile Breaks)") +
+    labs(title="Sum of rideshare trips by station and day of the week") +
+    mapTheme() + theme(legend.position = "bottom") 
+
+```
+
+## Space/time correlation
+
+Because bikeshare trips exhibits very strong spatial and temporal dependencies, we can create a GIF of ride pickups to visualize both together. Here, pickup data for a Monday and 15-minute intervals are used. To be specific, light green points stand for stations without any pickup in that specific 15 minute, dark green points stand for those with 1 pickup, and the darker red points are the more pickups stations have.
+
+```{r Space/time correlation}
+# create a plot panel
+week28 <-
+  filter(ride2 , week == 28 & dotw == "Mon")
+
+week28.panel <-
+  expand.grid(
+    interval15 = unique(week28$interval15),
+    start_station_id = unique(ride2$start_station_id))
+
+# wrangle data into panel and create trip level
+ride.animation.data <-
+  mutate(week28, Trip_Counter = 1) %>%
+    st_drop_geometry() %>% 
+    right_join(week28.panel) %>% 
+    group_by(interval15,start_station_id) %>%
+    summarize(Trip_Count = sum(Trip_Counter, na.rm=T)) %>% 
+    ungroup() %>% 
+    left_join(.,ride2 %>% dplyr::select(start_station_id) %>% distinct()) %>% 
+    mutate(Trips = case_when(Trip_Count == 0 ~ "0 trips",
+                             Trip_Count > 0 & Trip_Count <= 1 ~ "1 trips",
+                             Trip_Count > 1 & Trip_Count <= 3 ~ "2-3 trips",
+                             Trip_Count > 3 & Trip_Count <= 5 ~ "4-5 trips",
+                             Trip_Count > 5 ~ "6+ trips")) %>%
+    mutate(Trips  = fct_relevel(Trips, "0 trips","1 trips","2-3 trips",
+                                       "4-5 trips","6+ trips")) %>% 
+    st_sf()
+
+# create gif
+rideshare_animation <-
+  ggplot() +
+    geom_sf(data = hood, size = 0.1, color = "grey50", fill = "transparent") +
+    geom_sf(data = st_union(hood), color = "black", size = 0.6, fill = "transparent") +
+    geom_sf(data = ride.animation.data, aes(color = Trips)) +
+    scale_color_manual(values = palette5) +
+    labs(title = "Rideshare pickups for one day in July 2021",
+         subtitle = "15 minute intervals: {current_frame}") +
+    transition_manual(interval15) +
+    mapTheme()+
+    theme(panel.border = element_rect(colour = "white", fill=NA, size=2),)
+
+animate(rideshare_animation, duration=20, renderer = gifski_renderer())
+```
+
+## Weather correlation
+
+Finally, let's explore the relationship between rideshare trips and three major weather indexes. Firstly, weather with participation will reduce ride trips. Here, we simplify precipitation amount into two classes, "Rain/Snow" and "None" , on account of many zero values. Secondly, trips numbers will increase as temperatures increase, which is odd but explainable - during the day the temperature is higher and there are more traffic behaviors. At last, there will be more rideshare trips as the wind speed grows, which means people prefer bikes when the weather is less comfortable.
+
+```{r Weather correlation percipitations,fig.width=9, fig.height=3}
+st_drop_geometry(ride.panel) %>%
+  group_by(interval30) %>% 
+  summarize(Trip_Count = mean(Trip_Count),
+            Percipitation = mean(Percipitation)) %>%
+  mutate(isPercip = ifelse(Percipitation > 0,"Rain/Snow", "None")) %>%
+  group_by(isPercip) %>%
+  summarize(Mean_Trip_Count = mean(Trip_Count)) %>%
+    ggplot(aes(isPercip, Mean_Trip_Count)) + geom_bar(stat = "identity", fill = palette5[3]) +
+      labs(title="Does ridership vary with percipitation?",
+           x="Percipitation", y="Mean Trip Count") +
+      plotTheme()
+```
+
+```{r Weather correlation temp,fig.width=9, fig.height=3}
+st_drop_geometry(ride.panel) %>%
+  group_by(interval30) %>% 
+  summarize(Trip_Count = mean(Trip_Count),
+            Temperature = mean(Temperature)) %>%
+  mutate(week = week(interval30)) %>%
+  ggplot(aes(Temperature, Trip_Count)) + 
+    geom_point() + geom_smooth(method = "lm", se= FALSE) +
+    facet_wrap(~week, ncol=8) + 
+    labs(title="Trip Count as a fuction of Temperature by week",
+         x="Temperature", y="Mean Trip Count") +
+    plotTheme() 
+```
+
+```{r Weather correlation wind,fig.width=9, fig.height=3}
+st_drop_geometry(ride.panel) %>%
+  group_by(interval30) %>% 
+  summarize(Trip_Count = mean(Trip_Count),
+            Wind_Speed = mean(Wind_Speed)) %>%
+  mutate(week = week(interval30)) %>%
+  ggplot(aes(Wind_Speed, Trip_Count)) + 
+    geom_point() + geom_smooth(method = "lm", se= FALSE) +
+    facet_wrap(~week, ncol=8) + 
+    labs(title="Trip Count as a fuction of Wind Speed by week",
+         x="Wind Speed", y="Mean Trip Count") +
+    plotTheme() 
+```
+
+# Modeling and Validation
+
+## Estimate a ride share forecast model
+
+In this section, four different linear regressions are estimated on the train data set, each with different fixed effects:
+
+1.  `reg1` focuses on just time, including 30-min fixed effects, day of the week, and `Temperature`.
+
+2.  `reg2` focuses on just space effects with the `Pickup.Census.Tract` fixed effects.
+
+3.  `reg3` includes both time and space fixed effects.
+
+4.  `reg4` adds the time `lag` features.
+
+```{r Estimate ride share forecast models}
+reg1 <- lm(Trip_Count ~  hour(interval30) + dotw + Temperature, data=ride.Train)
+
+reg2 <- lm(Trip_Count ~  start_station_id + dotw + Temperature, data=ride.Train)
+
+reg3 <- lm(Trip_Count ~  start_station_id + hour(interval30) + dotw + Temperature, 
+                         data=ride.Train)
+
+reg4 <- lm(Trip_Count ~  start_station_id +  hour(interval30) + dotw + Temperature +
+                         lag0.5Hour + lag1Hours + lag1.5Hours + lag2Hours + lag12Hours + lag1day, data=ride.Train)
+```
+
+## Validate test set by time
+
+```{r Validate test set by time}
+ride.Test.weekNest <- 
+  as.data.frame(ride.Test) %>%
+  nest(-week) 
+
+ride.Test.weekNest
+```
+
+```{r prediction result}
+# create a function
+model_pred <- function(dat, fit){
+   pred <- predict(fit, newdata = dat)}
+
+# predict
+week_predictions <- 
+  ride.Test.weekNest %>% 
+    mutate(A_Time_FE = map(.x = data, fit = reg1, .f = model_pred),
+           B_Space_FE = map(.x = data, fit = reg2, .f = model_pred),
+           C_Space_Time_FE = map(.x = data, fit = reg3, .f = model_pred),
+           D_Space_Time_Lags = map(.x = data, fit = reg4, .f = model_pred))
+
+#convert into long from
+week_predictions <- week_predictions %>%  
+    gather(Regression, Prediction, -data, -week) %>% 
+    mutate(Observed = map(data, pull, Trip_Count),
+           Absolute_Error = map2(Observed, Prediction,  ~ abs(.x - .y)),
+           MAE = map_dbl(Absolute_Error, mean),
+           sd_AE = map_dbl(Absolute_Error, sd))
+
+week_predictions 
+```
+
+1.  2-3 paragraphs that introduce the reader to **bike share** and the **need for re-balancing**. How will re-balancing occur? Perhaps you will manage a small fleet of trucks to move bikes from here to there or perhaps you will offer rewards, discounts or other incentives for riders to move a bike from place to place. *Keep in mind*, your plan will inform the appropriate time lag features you can use. How far forward do you wish to predict for at any given time?
+
+2.  Your unit of analysis here is the bike share station, not Census tracts. Engineer features to account for weather and time effects and **experiment with some amenity features**. Develop two different training/test sets including 1) a 3 week training set and a 2 week test set of all the stations and 2) a complete 5 week panel for cross-validation.
+
+3.  Develop exploratory analysis plots that describe the space/time dependencies in the data and create an animated map. Interpret your findings in the context of the re-balancing plan.
+
+4.  Use `purrr` to train and validate several models for comparison on the latter two week test set. Perform either random k-fold cross validation or LOGO-CV on the 5 week panel. You may choose to cross validate by time or space. Interpret your findings in the context of accuracy and generalizability.
+
+5.  Conclude with how useful your algorithm is for the bike re-balancing plan.

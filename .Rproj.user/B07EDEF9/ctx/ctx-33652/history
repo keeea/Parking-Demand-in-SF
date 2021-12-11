@@ -1,0 +1,512 @@
+uniqueID = map(data, pull, uniqueID)) %>%
+dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+unnest() %>%
+gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%
+group_by(Regression, Variable, interval60) %>%
+summarize(Value = sum(Value)) %>%
+ggplot(aes(interval60, Value, colour=Variable)) +
+geom_line(size = 1.1) +
+facet_wrap(~Regression, ncol=1) +
+labs(title = "Predicted/Observed car parks in time series", subtitle = "San Francisco; test set of 2 weeks",  x = "Hour", y= "Car Parks")
+error_grid <-
+week_predictions %>%
+mutate(interval60 = map(data, pull, interval60),
+uniqueID = map(data, pull, uniqueID)) %>%
+dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+unnest() %>%
+filter(Regression == "A_linear_reg7") %>%
+left_join(park.Test %>%
+dplyr::select(interval60, uniqueID, countMeters),
+by=c("interval60","uniqueID")) %>%
+mutate(Prediction_mean = Prediction/countMeters,
+Observed_mean = Observed/countMeters,
+Absolute_Error = abs(Prediction_mean - Observed_mean)) %>%
+group_by(uniqueID) %>%
+summarize(MAE = mean(Absolute_Error, na.rm = TRUE))%>%
+left_join(meter_net) %>%
+dplyr::select(-countMeters) %>%
+st_as_sf()
+ggplot() +
+geom_sf(data = error_grid, aes(fill = MAE), color = NA) +
+scale_fill_viridis() +
+labs(title = "MAE by Grids")+
+mapTheme()
+summary(linear_reg10)
+View(var_net)
+park.Train <- filter(park.panel.lag, week <= 32)
+park.Test <- filter(park.panel.lag, week > 32) %>%
+filter(uniqueID != 101)
+fridays <-
+mutate(park.panel.lag,
+friday = ifelse(dotw == "Fri" & hour(interval60) == 9,
+interval60, 0)) %>%
+filter(friday != 0)
+st_drop_geometry(rbind(
+mutate(park.Train, Legend = "Training"),
+mutate(park.Test, Legend = "Testing"))) %>%
+group_by(Legend, interval60) %>%
+summarize(Real_Count = sum(Real_Count)) %>%
+ungroup() %>%
+ggplot(aes(interval60, Real_Count, colour = Legend)) + geom_line() +
+scale_colour_manual(values = palette2) +
+geom_vline(data = fridays, aes(xintercept = friday), linetype = "dotted") +
+labs(title="Parking Counts by week: November-December",
+subtitle="Dotted lines for Fridays",
+x="Day", y="Parking Count") +
+plotTheme() + theme(panel.grid.major = element_blank())
+linear_reg7 <-
+lm(Real_Count ~  hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay,  data=park.Train)
+linear_reg8 <-
+lm(Real_Count ~  hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay
++ off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans
++ countClean + countFood + countGraffiti + countIncident + countViolation + countRetail
++ pm_district_name + speedlimit + sidewalk_width,
+data=park.Train)
+linear_reg9 <-
+lm(Real_Count ~  hour + dotw  + lagHour + lag2Hours +lag3Hours + lagDay
++ off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans
++ countClean + countFood + countGraffiti + countIncident + countViolation + countRetail
++ pm_district_name + speedlimit + sidewalk_width,
+data=park.Train)
+#poisson_reg1 <- glm(formula = Real_Count ~ hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay, data = park.Train, family = poisson)
+#poisson_reg2 <- glm(formula = Real_Count ~  hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay+ off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans+ countClean + countFood + countGraffiti + countIncident + countViolation + countRetail+ pm_district_name + speedlimit + sidewalk_width, data = park.Train, family = poisson)
+# # summary(linear_reg8)
+# AIC(linear_reg7)
+park.Test.weekNest <-
+as.data.frame(park.Test) %>%
+nest(-week)
+parking.Test.weekNest
+model_pred <- function(dat, fit){
+pred <- predict(fit, newdata = dat)}
+week_predictions <-
+park.Test.weekNest %>%
+mutate(A_linear_reg7 = map(.x = data, fit = linear_reg7, .f = model_pred),
+B_linear_reg8 = map(.x = data, fit = linear_reg8, .f = model_pred),
+C_linear_reg9 = map(.x = data, fit = linear_reg9, .f = model_pred)
+#D_poisson_reg1 = map(.x = data, fit = poisson_reg1, .f = model_pred),
+#E_poisson_reg2 = map(.x = data, fit = poisson_reg2, .f = model_pred)
+)
+week_predictions
+week_predictions <- week_predictions %>%
+gather(Regression, Prediction, -data, -week) %>%
+mutate(Observed = map(data, pull, Real_Count),
+# we do not have countMeters here
+#           Observed_mean = map2(Observed, countMeters, ~ (.x / .y)),
+#           Prediction_mean = map2(Prediction, countMeters, ~ (.x / .y)),
+Absolute_Error = map2(Observed, Prediction,  ~ abs(.x - .y)),
+MAE = map_dbl(Absolute_Error, mean),
+sd_AE = map_dbl(Absolute_Error, sd))
+week_predictions %>%
+dplyr::select(week, Regression, MAE) %>%
+gather(Variable, MAE, -Regression, -week) %>%
+ggplot(aes(week, MAE)) +
+geom_bar(aes(fill = Regression), position = "dodge", stat="identity") +
+scale_fill_manual(values = palette5) +
+labs(title = "Mean Absolute Errors by model specification and week") +
+plotTheme()
+test.result <- week_predictions %>%
+mutate(interval60 = map(data, pull, interval60),
+uniqueID = map(data, pull, uniqueID)) %>%
+dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+unnest(cols = c(interval60, uniqueID, Observed, Prediction)) %>%
+left_join(park.Test %>%
+dplyr::select(interval60, uniqueID, countMeters),
+by=c("interval60","uniqueID")) %>%
+mutate(Prediction_mean = Prediction/countMeters,
+Observed_mean = Observed/countMeters,
+Absolute_Error = abs(Prediction_mean - Observed_mean),
+APE = Absolute_Error/Observed_mean) %>%
+group_by(Regression) %>%
+summarize(MAE = mean(Absolute_Error,na.rm = T),
+MAPE = mean(APE,na.rm = T),
+sd_AF = sd(Absolute_Error,na.rm = T))
+test.result %>%
+ggplot(aes(Regression, MAE)) +
+geom_bar(aes(fill = Regression), position = "dodge", stat="identity") +
+scale_fill_manual(values = palette5) +
+labs(title = "Mean Absolute Errors by model specification and week",
+subtitle = 'for mean parking counts in each grid') +
+plotTheme()
+x <- week_predictions %>%
+mutate(interval60 = map(data, pull, interval60),
+uniqueID = map(data, pull, uniqueID)) %>%
+dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+unnest(cols = c(interval60, uniqueID, Observed, Prediction)) %>%
+left_join(park.Test %>%
+dplyr::select(interval60, uniqueID, countMeters),
+by=c("interval60","uniqueID")) %>%
+mutate(Prediction_mean = Prediction/countMeters,
+Observed_mean = Observed/countMeters,
+Absolute_Error = abs(Prediction_mean - Observed_mean),
+APE = Absolute_Error/Observed_mean)
+mean(x$Observed_mean)
+week_predictions %>%
+mutate(interval60 = map(data, pull, interval60),
+uniqueID = map(data, pull, uniqueID)) %>%
+dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+unnest() %>%
+gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%
+group_by(Regression, Variable, interval60) %>%
+summarize(Value = sum(Value)) %>%
+ggplot(aes(interval60, Value, colour=Variable)) +
+geom_line(size = 1.1) +
+facet_wrap(~Regression, ncol=1) +
+labs(title = "Predicted/Observed car parks in time series", subtitle = "San Francisco; test set of 2 weeks",  x = "Hour", y= "Car Parks")
+error_grid <-
+week_predictions %>%
+mutate(interval60 = map(data, pull, interval60),
+uniqueID = map(data, pull, uniqueID)) %>%
+dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
+unnest() %>%
+filter(Regression == "A_linear_reg7") %>%
+left_join(park.Test %>%
+dplyr::select(interval60, uniqueID, countMeters),
+by=c("interval60","uniqueID")) %>%
+mutate(Prediction_mean = Prediction/countMeters,
+Observed_mean = Observed/countMeters,
+Absolute_Error = abs(Prediction_mean - Observed_mean)) %>%
+group_by(uniqueID) %>%
+summarize(MAE = mean(Absolute_Error, na.rm = TRUE))%>%
+left_join(meter_net) %>%
+dplyr::select(-countMeters) %>%
+st_as_sf()
+ggplot() +
+geom_sf(data = error_grid, aes(fill = MAE), color = NA) +
+scale_fill_viridis() +
+labs(title = "MAE by Grids")+
+mapTheme()
+summary(linear_reg9)
+# transfer to long form
+plotData.lag <- park.panel.lag %>%
+st_drop_geometry() %>%
+#filter(week == 28) %>%
+dplyr::select(starts_with("lag"), Trip_Count) %>%
+gather(Variable, Value, -Trip_Count) %>%
+mutate(Variable = fct_relevel(Variable, "lag0.5Hour","lag1Hours","lag1.5Hours",
+"lag2Hours","lag12Hours","lag1day"))
+View(park.Test)
+# transfer to long form
+plotData.lag <- park.panel.lag %>%
+st_drop_geometry() %>%
+#filter(week == 28) %>%
+dplyr::select(starts_with("lag"), Real_Count) %>%
+gather(Variable, Value, -Real_Count) %>%
+mutate(Variable = fct_relevel(Variable, "lag0.5Hour","lag1Hours","lag1.5Hours",
+"lag2Hours","lag12Hours","lag1day"))
+#caculaye cor and plot
+correlation.lag <-
+group_by(plotData.lag, Variable) %>%
+summarize(correlation = round(cor(Value, Real_Count, use = "complete.obs"), 2))
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, vjust = 1.5, hjust = -.1, size = 1) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+# transfer to long form
+plotData.lag <- park.panel.lag %>%
+st_drop_geometry() %>%
+dplyr::select(starts_with("lag"), Real_Count) %>%
+gather(Variable, Value, -Real_Count) %>%
+mutate(Variable = fct_relevel(Variable, "lagHour","lag2Hours","lag3Hours","lagDay"))
+#caculaye cor and plot
+correlation.lag <-
+group_by(plotData.lag, Variable) %>%
+summarize(correlation = round(cor(Value, Real_Count, use = "complete.obs"), 2))
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, vjust = 1.5, hjust = -.1, size = 1) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+View(correlation.lag)
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+vjust = 1.5, hjust = -.1, size = 1) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, size = 1) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, vjust = 1.5, hjust = -.1，size = 5) +
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, vjust = 1.5, hjust = -.1, size = 5) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+ggplot(plotData.lag, aes(Value, Real_Count)) +
+geom_point(size = 0.5, color = palette5b[1]) +
+geom_text(data = correlation.lag, aes(label = paste("r =", correlation)),
+x=-Inf, y=Inf, vjust = 1.5, hjust = -.1, size = 10) +
+geom_smooth(method = "lm", se = FALSE, colour = palette5b[4]) +
+facet_wrap(~Variable, nrow = 1, scales = "free") +
+labs(title = "Parking count s a function of ime lags",
+subtitle = "Six weeks in July & August, 2021") +
+plotTheme()
+group_by(park.panel.lag, week, Pickup.Census.Tract) %>%
+summarize(Sum_Real_Count = sum(Real_Count)) %>%
+ungroup() %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~week, ncol = 8) +
+scale_fill_manual(values = palette5,
+labels = c("16", "140", "304", "530", "958"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and week") +
+mapTheme() + theme(legend.position = "bottom")
+group_by(park.panel.lag, week, uniqueID) %>%
+summarize(Sum_Real_Count = sum(Real_Count)) %>%
+ungroup() %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~week, ncol = 8) +
+scale_fill_manual(values = palette5,
+labels = c("16", "140", "304", "530", "958"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and week") +
+mapTheme() + theme(legend.position = "bottom")
+group_by(park.panel.lag, week, uniqueID) %>%
+summarize(Sum_Real_Count = sum(Real_Count)) %>%
+ungroup() %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~week, ncol = 8) +
+scale_fill_manual(values = palette5,
+labels = c("16", "140", "304", "530", "958"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and week") +
+mapTheme() + theme(legend.position = "bottom")
+spatial_plot <- group_by(park.panel.lag, week, uniqueID) %>%
+summarize(Sum_Real_Count = sum(Real_Count)) %>%
+ungroup()
+spatial_plot %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~week, ncol = 8) +
+scale_fill_manual(values = palette5,
+labels = qBr(spatial_plot, "Sum_Real_Count"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and week") +
+mapTheme() + theme(legend.position = "bottom")
+View(test.result)
+0.05676859/0.1208054
+summary(linear_reg7)
+summary(linear_reg9)
+spatial_plot %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~week, ncol = 3) +
+scale_fill_manual(values = palette5,
+labels = qBr(spatial_plot, "Sum_Real_Count"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and week") +
+mapTheme() + theme(legend.position = "bottom")
+spatial_plot.2 <- group_by(park.panel.lag, dotw, uniqueID) %>%
+summarize(Sum_Real_Count = sum(Real_Count)) %>%
+ungroup()
+spatial_plot.2 %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~week, ncol = 3) +
+scale_fill_manual(values = palette5,
+labels = qBr(spatial_plot, "Sum_Real_Count"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and day of the week") +
+mapTheme() + theme(legend.position = "bottom")
+spatial_plot.2 %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~dotw, ncol = 5) +
+scale_fill_manual(values = palette5,
+labels = qBr(spatial_plot, "Sum_Real_Count"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and day of the week") +
+mapTheme() + theme(legend.position = "bottom")
+spatial_plot.2 %>%
+ggplot() + geom_sf(aes(fill = q5(Sum_Real_Count))) +
+facet_wrap(~dotw, ncol = 5) +
+scale_fill_manual(values = palette5,
+labels = qBr(spatial_plot, "Sum_Real_Count"),
+name = "Real_Count") +
+labs(title="Sum of parking records by tract and day of the week") +
+mapTheme() + theme(legend.position = "bottom")
+View(street_park_grid)
+week30 <-
+filter(street_parks.final , week == 30 & dotw == "Mon") %>%
+mutate(interval15 = floor_date(mdy_hms(Trip.Start.Timestamp), unit = "15 mins"))
+week30 <-
+filter(street_parks.final , week == 30 & dotw == "Mon") %>%
+mutate(interval15 = floor_date(mdy_hms(session_start_dt), unit = "15 mins"))
+week30.panel <-
+expand.grid(
+interval15 = unique(week30$interval15),
+uniqueID = unique(week30$uniqueID))
+park.animation.data <-
+mutate(week30, Real_Counter = 1) %>%
+right_join(week30.panel) %>%
+group_by(interval15, uniqueID) %>%
+summarize(Real_Count = sum(Real_Counter, na.rm=T)) %>%
+ungroup() %>%
+left_join(var_net %>% dplyr::select(uniqueID), by=c("uniqueID")) %>%
+st_sf() %>%
+mutate(Trips = case_when(Real_Count == 0 ~ "0 parkings",
+Real_Count > 0 & Real_Count <= 3 ~ "1-3 parkings",
+Real_Count > 3 & Real_Count <= 6 ~ "4-6 parkings",
+Real_Count > 6 & Real_Count <= 10 ~ "7-10 parkings",
+Real_Count > 10 ~ "11+ parkings")) %>%
+mutate(parkings  = fct_relevel(Parking Records, "0 parkings","1-3 parkings","4-6 parkings",
+park.animation.data <-
+mutate(week30, Real_Counter = 1) %>%
+right_join(week30.panel) %>%
+group_by(interval15, uniqueID) %>%
+summarize(Real_Count = sum(Real_Counter, na.rm=T)) %>%
+ungroup() %>%
+left_join(var_net %>% dplyr::select(uniqueID), by=c("uniqueID")) %>%
+st_sf() %>%
+mutate(Trips = case_when(Real_Count == 0 ~ "0 parkings",
+Real_Count > 0 & Real_Count <= 3 ~ "1-3 parkings",
+Real_Count > 3 & Real_Count <= 6 ~ "4-6 parkings",
+Real_Count > 6 & Real_Count <= 10 ~ "7-10 parkings")) %>%
+mutate(parkings  = fct_relevel(Parking Records, "0 parkings","1-3 parkings","4-6 parkings",
+park.animation.data <-
+mutate(week30, Real_Counter = 1) %>%
+right_join(week30.panel) %>%
+group_by(interval15, uniqueID) %>%
+summarize(Real_Count = sum(Real_Counter, na.rm=T)) %>%
+ungroup() %>%
+left_join(var_net %>% dplyr::select(uniqueID), by=c("uniqueID")) %>%
+st_sf() %>%
+mutate(Parkings = case_when(Real_Count == 0 ~ "0 parkings",
+Real_Count > 0 & Real_Count <= 3 ~ "1-3 parkings",
+Real_Count > 3 & Real_Count <= 6 ~ "4-6 parkings",
+Real_Count > 6 & Real_Count <= 10 ~ "7-10 parkings",
+Real_Count > 10 ~ "11+ parkings")) %>%
+mutate(Parkings  = fct_relevel(Parkings, "0 parkings","1-3 parkings","4-6 parkings",
+"7-10 parkings","10+ parkings"))
+View(week30)
+week30 <-
+filter(street_parks.final , week == 30 & dotw == "Mon") %>%
+mutate(interval15 = floor_date(ymd_hms(session_start_dt), unit = "15 mins"))
+week30.panel <-
+expand.grid(
+interval15 = unique(week30$interval15),
+uniqueID = unique(week30$uniqueID))
+park.animation.data <-
+mutate(week30, Real_Counter = 1) %>%
+right_join(week30.panel) %>%
+group_by(interval15, uniqueID) %>%
+summarize(Real_Count = sum(Real_Counter, na.rm=T)) %>%
+ungroup() %>%
+left_join(var_net %>% dplyr::select(uniqueID), by=c("uniqueID")) %>%
+st_sf() %>%
+mutate(Parkings = case_when(Real_Count == 0 ~ "0 parkings",
+Real_Count > 0 & Real_Count <= 3 ~ "1-3 parkings",
+Real_Count > 3 & Real_Count <= 6 ~ "4-6 parkings",
+Real_Count > 6 & Real_Count <= 10 ~ "7-10 parkings",
+Real_Count > 10 ~ "11+ parkings")) %>%
+mutate(Parkings  = fct_relevel(Parkings, "0 parkings","1-3 parkings","4-6 parkings",
+"7-10 parkings","10+ parkings"))
+View(week30)
+week30 <-
+filter(street_parks.final , week == 30 & dotw == "Mon") %>%
+mutate(interval15 = floor_date(ymd_hms(session_start_dt), unit = "15 mins")) %>%
+st_join(var_net %>% dplyr::select(uniqueID),.) %>%
+na.omit()
+%>%
+week30 <-
+filter(street_parks.final , week == 30 & dotw == "Mon") %>%
+mutate(interval15 = floor_date(ymd_hms(session_start_dt), unit = "15 mins")) %>%
+st_join(var_net %>% dplyr::select(uniqueID),.)
+week30.panel <-
+expand.grid(
+interval15 = unique(week30$interval15),
+uniqueID = unique(week30$uniqueID))
+park.animation.data <-
+mutate(week30, Real_Counter = 1) %>%
+right_join(week30.panel) %>%
+group_by(interval15, uniqueID) %>%
+summarize(Real_Count = sum(Real_Counter, na.rm=T)) %>%
+ungroup() %>%
+left_join(var_net %>% dplyr::select(uniqueID), by=c("uniqueID")) %>%
+st_sf() %>%
+mutate(Parkings = case_when(Real_Count == 0 ~ "0 parkings",
+Real_Count > 0 & Real_Count <= 3 ~ "1-3 parkings",
+Real_Count > 3 & Real_Count <= 6 ~ "4-6 parkings",
+Real_Count > 6 & Real_Count <= 10 ~ "7-10 parkings",
+Real_Count > 10 ~ "11+ parkings")) %>%
+mutate(Parkings  = fct_relevel(Parkings, "0 parkings","1-3 parkings","4-6 parkings",
+"7-10 parkings","10+ parkings"))
+View(parking.animation.data)
+View(parking_animation)
+week30 <-
+filter(park.panel.lag, week == 30 & dotw == "Mon")
+park.animation.data <- week30 %>%
+mutate(Parkings = case_when(Real_Count == 0 ~ "0 parkings",
+Real_Count > 0 & Real_Count <= 3 ~ "1-3 parkings",
+Real_Count > 3 & Real_Count <= 6 ~ "4-6 parkings",
+Real_Count > 6 & Real_Count <= 10 ~ "7-10 parkings",
+Real_Count > 10 ~ "11+ parkings")) %>%
+mutate(Parkings  = fct_relevel(Parkings, "0 parkings","1-3 parkings","4-6 parkings",
+"7-10 parkings","10+ parkings"))
+rideshare_animation <-
+ggplot() +
+geom_sf(data = ride.animation.data, aes(fill = Parkings)) +
+scale_fill_manual(values = palette5) +
+labs(title = "Parking records for one day in July 2021",
+subtitle = "60 minute intervals: {current_frame}") +
+transition_manual(interval60) +
+mapTheme()
+park_animation <-
+ggplot() +
+geom_sf(data = park.animation.data, aes(fill = Parkings)) +
+scale_fill_manual(values = palette5) +
+labs(title = "Parking records for one day in July 2021",
+subtitle = "60 minute intervals: {current_frame}") +
+transition_manual(interval60) +
+mapTheme()
+animate(park_animation, duration=20, renderer = gifski_renderer())
+gganimate::animate(park_animation, length = 15, width = 700, height = 400)
+animate(park_animation, duration=20, renderer = gifski_renderer())
+anim_save("parking_gif", ark_animation, duration=20, renderer = gifski_renderer())
+animate(park_animation, duration=20, renderer = gifski_renderer())
+anim_save("parking_gif", park_animation, duration=20, renderer = gifski_renderer())
+animate(park_animation, duration=20, renderer = gifski_renderer())
+library(gganimate)
+library(riem)
+anim_save("parking_gif", park_animation, duration=10, renderer = gifski_renderer())
+animate(park_animation, duration=10, renderer = gifski_renderer())
+install.packages("gifski")

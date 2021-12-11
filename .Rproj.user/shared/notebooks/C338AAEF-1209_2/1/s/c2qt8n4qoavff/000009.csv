@@ -1,0 +1,70 @@
+"0","
+street_parks.final<- street_parks.final %>% 
+  mutate(session_start_dt = ymd_hms(session_start_dt),
+         dotw = wday(interval60, label = TRUE)) %>% 
+  filter(hour(session_start_dt) >= 9 & hour(session_start_dt) <=18) %>% 
+  filter(dotw != ""Sat"" & dotw != ""Sun"")
+  
+
+street_parks.final <- street_parks.final %>% 
+  mutate(interval60 = floor_date(ymd_hms(session_start_dt), unit = ""hour""),
+         week = week(interval60))
+
+street_park_grid <-
+  st_join(var_net,street_parks.final %>% dplyr::select(interval60)) %>%
+  na.omit() 
+
+park.panel <- 
+  expand.grid(interval60=unique(street_park_grid$interval60), 
+              uniqueID = unique(street_park_grid$uniqueID)) 
+
+park.panel.count <- 
+  street_park_grid %>%
+  st_drop_geometry() %>% 
+  mutate(Park_Counter = 1) %>%
+  dplyr::select(Park_Counter,uniqueID,interval60) %>% 
+  right_join(park.panel,by=c(""uniqueID"",""interval60"")) %>% 
+  group_by(interval60, uniqueID) %>%
+  summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(week = week(interval60),
+         dotw = wday(interval60, label = TRUE),
+         hour = hour(interval60)) %>% 
+  left_join(var_net %>%  dplyr::select(-countPark),
+            by = c(""uniqueID"")) %>% 
+  st_sf()
+"
+"2","`summarise()` has grouped output by 'interval60'. You can override using the `.groups` argument.
+"
+"0",""
+"0","# park.panel.mean <- "
+"0","#   street_park_grid %>%"
+"0","#   st_drop_geometry() %>% "
+"0","#   mutate(Park_Counter = 1) %>%"
+"0","#   right_join(park.panel,by=c(""uniqueID"",""interval15"")) %>% "
+"0","#   group_by(interval15, uniqueID) %>%"
+"0","#   summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%"
+"0","#   ungroup() %>%"
+"0","#   mutate(week = week(interval15),"
+"0","#          dotw = wday(interval15, label = TRUE)) %>% "
+"0","#   left_join(meter_net) %>%"
+"0","#   left_join(var_net) %>% "
+"0","#   mutate(mean = Real_Count/countMeters) %>%"
+"0","#   st_sf() "
+"0",""
+"0","# add time lag to the panel"
+"0","park.panel.lag <- "
+"0","  park.panel.count %>% "
+"0","  arrange(uniqueID,interval60) %>% "
+"0","  group_by(uniqueID) %>% "
+"0","  mutate(lagHour = dplyr::lag(Real_Count,1),"
+"0","         lag2Hours = dplyr::lag(Real_Count,2),"
+"0","         lag3Hours = dplyr::lag(Real_Count,3),"
+"0","         lagDay = dplyr::lag(Real_Count,24)) %>%"
+"0","  ungroup()"
+"0",""
+"0","ggplot(park.panel.lag, aes(interval60, Real_Count)) + "
+"0","  geom_line() +"
+"0","  scale_colour_manual(values = palette2) +"
+"0","  labs(title=""On-street Car Parks per hour, SF, 2021-07-09"","
+"0","       x=""Time"", y=""Number of Parking Records"")"

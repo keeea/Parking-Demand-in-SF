@@ -1,0 +1,4 @@
+"0","linear_reg7 <- "
+"0","  lm(log_count ~  hour(interval60) + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay,  data=park.Train)"
+"2","Error in eval(predvars, data, env) : object 'log_count' not found
+"

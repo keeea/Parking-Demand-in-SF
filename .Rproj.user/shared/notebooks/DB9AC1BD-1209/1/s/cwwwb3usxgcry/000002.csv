@@ -1,0 +1,18 @@
+"0","week_predictions %>% "
+"0","    mutate(interval60 = map(data, pull, interval60),"
+"0","           uniqueID = map(data, pull, uniqueID)) %>%"
+"0","    dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%"
+"0","    unnest() %>%"
+"0","    gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%"
+"0","    group_by(Regression, Variable, interval60) %>%"
+"0","    summarize(Value = sum(Value)) %>%"
+"0","    ggplot(aes(interval60, Value, colour=Variable)) + "
+"0","      geom_line(size = 1.1) + "
+"0","      facet_wrap(~Regression, ncol=1) +"
+"0","      labs(title = ""Predicted/Observed car parks in time series"", subtitle = ""San Francisco; test set of 2 weeks"",  x = ""Hour"", y= ""Car Parks"") "
+"2","`cols` is now required when using unnest().
+Please use `cols = c(interval60, uniqueID, Observed, Prediction)`"
+"2","attributes are not identical across measure variables;
+they will be dropped"
+"2","`summarise()` has grouped output by 'Regression', 'Variable'. You can override using the `.groups` argument.
+"
