@@ -60,4 +60,4 @@ In the page above (Fig. x+1), the APP focuses on the temporal distribution of th
 
 ## 7. Conclusions
 
-
+In this project, we applied linear regression model and poisson regression model in predicting the on-street parking demands in San Francisco.
