@@ -59,6 +59,7 @@ We also make the maps of parking numbers in fishnet grids by the day of week to 
 
  - {r Space/time correlation gif}
  
+We generate a .gif to show the changing of parking numbers in both space and time.
 
 
 ## 5. Modeling and Validation
