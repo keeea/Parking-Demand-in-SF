@@ -82,4 +82,9 @@ In the page above (Fig. x+1), the APP focuses on the temporal distribution of th
 
 ## 7. Conclusions
 
-In this project, we applied linear regression model and poisson regression model in predicting the on-street parking demands in San Francisco.
+In this project, we applied linear regression model and poisson regression model in predicting the on-street parking demands in San Francisco. Our linear model reaches a R2 of …, while the poisson model’s R2 is …. {briefly describe the model choice}.
+
+Based on our model, SFMTA can more easily predict the demand of on-street parking, and adjust the parking fee rate in advance to prevent on-street parking from being overpriced or underpriced, so as to increase their revenue as well as reduce negative externalities brought by lack of parking lots.
+
+In the future, we can keep improving the model accuracy by importing feature data with higher spatial and temporal resolution. Other relevant feature data can also be applied to the model, which will probably add to model accuracy as well.
+
