@@ -808,7 +808,7 @@ park_animation <-
     mapTheme()
 
 #animate(park_animation, duration=10, renderer = gifski_renderer())
-anim_save("parking.gif", park_animation, duration=10, renderer = gifski_renderer())
+# anim_save("parking.gif", park_animation, duration=10, renderer = gifski_renderer())
 ```
 
 ![](images/parking.gif)
@@ -1000,6 +1000,8 @@ Next, we will further optimize `OLS_reg3` with more feature engineering.
 
 ## Validate test set by space
 
+We also do the validation by space. As is shown in the map below, the model performs well in most of the grids, with a MAE of less than 0.4. There are also few outliers which shows high MAE. However, these outliers do not show a clustering pattern, which means our regression model has a good generalizability among the study area.
+
 ```{r Mean Absolute Errors by grid and by week,fig.width=3}
 predictions_AverageMeter %>% 
   filter(Regression == "C_OLS_reg3" ) %>% 
@@ -1017,6 +1019,8 @@ predictions_AverageMeter %>%
          subtitle = 'For average parking counts within each grid') +
     mapTheme() 
 ```
+
+Here we generate an animated map of the MAEs by grid and by hour to see the spatio-temporal distribution of the model's MAE. We can see that for most of the time periods and most of the spatial units, our model perform well with a satisfying MAE.
 
 ```{r Mean Absolute Count Errors by grid and by hour}
 error.animation.data <- predictions_AverageMeter %>%
@@ -1040,7 +1044,7 @@ MAE_animation <-
     
 
 #animate(park_animation, duration=10, renderer = gifski_renderer())
-anim_save("MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
+#anim_save("MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
 ```
 
 ![](MAE.gif)
@@ -1049,13 +1053,15 @@ anim_save("MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
 
 ### Cross Validation fro OLS
 
+To better test the generalizability of the OLS regression model, we apply cross validation here. The distribution of MAE cluster quite tightly together (most of which are from 3.3 to 3.8 approximately), and this suggest that the model have a quite good generalizability.
+
 ```{r Cross Validation}
 fitControl <- trainControl(method = "cv", number = 100)
 set.seed(825)
 
 reg.cv8 <- 
   train(Real_Count ~ ., data = st_drop_geometry(park.Train) %>% 
-          dplyr::select(RReal_Count, hour,dotw ,lagHour,lag2Hours +lag3Hours,lagDay
+          dplyr::select(Real_Count, hour,dotw ,lagHour,lag2Hours,lag3Hours,lagDay
     ,off_parking.nn,countCarshare,Percent_White,Mean_Commute_Time,Percent_Taking_Public_Trans
     ,countClean,countFood,countGraffiti,countIncident,countViolation,countRetail
     ,pm_district_name,speedlimit,sidewalk_width,), 
