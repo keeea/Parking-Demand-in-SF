@@ -12,12 +12,16 @@ output:
     theme: united
     highlight: tango
 ---
+
+```{=html}
 <style type="text/css">
   body{
   font-size: 12pt;
 }
 </style>
----
+```
+
+------------------------------------------------------------------------
 
 # 1. Introduction and Background
 
@@ -87,9 +91,10 @@ We generate a .gif to show the changing of parking numbers in both space and tim
 
 # 6. Applications
 
-As is discussed above, we carry out a regression model to predict the future parking demands in San Francisco, and we reach a satisfying accuracy. This prediction model serves as important data source for the demand-based dynamic pricing model. In our model, we input the parking numbers in each fishnet grid, together with the features of built environment, neighborhood, and road characteristics, and get the output of parking numbers for each grid 1 hour later. Then we transform the parking numbers into on-street parking vacancy in each grid by dividing the number of meters in each grid. According to the vacancy, we can give our advise on pricing strategies to SFMTA.
+As is discussed above, we carry out a regression model to predict the future parking demands in San Francisco, and we reach a satisfying accuracy. This prediction model serves as important data source for the demand-based dynamic pricing model. In our model, we input the parking numbers in each fishnet grid, together with the features of built environment, neighborhood, and road characteristics, and get the output of parking numbers for each grid 1 hour later. Then we transform the parking numbers into on-street parking vacancy in each grid by dividing the number of meters in each grid. According to the vacancy, we can give our advice on pricing strategies to SFMTA.
 
-Considering our use case, we develop a web-based APP towards SFMTA, and the user interface is shown as follows.
+Considering our use case, we develop a web-based APP towards SFMTA, and the user interface is shown as follows. In the left navigation bar, there are a bunch of different functions for users to explore. Generally, we display our prediction results of parking occupancy and parking-related congestions in San Francisco, and give pricing advices according to the prediction. We also monitor the real-time parking hotspots, traffic hotspots, and real-time parking fee rate for users' reference. Other operation analysis
+like revenue monitoring, history simulation, and conclusion reports are also added to our APP to assist with the pricing process for SFMTA.
 
 ![](pics/wireframe1.png)
 
