@@ -25,7 +25,7 @@ The City and County of San Francisco, is a cultural, commercial, and financial c
 
 San Francisco is also a popular tourist destination, which is known for its cool summers, fog, steep rolling hills, eclectic mix of architecture, and landmarks, including the Golden Gate Bridge, cable cars, the former Alcatraz Federal Penitentiary, Fisherman's Wharf, and its Chinatown district. With so many famous resorts, San Francisco attracts over 26.5 million visitors in 2019.
 
-![](SF_neighborhoods.jpg)
+![](pics/SF_neighborhoods.jpg)
 
 Fig. x Map of neighborhoods in San Francisco
 
@@ -37,7 +37,7 @@ To solve the problem of parking shortage, the San Francisco Municipal Transporta
 
 Table 1 Current Parking Fee Rate in San Francisco
 
-![](parking_fee.png)
+![](pics/parking_fee.png)
 
 # 2. Use Case
 
@@ -91,19 +91,19 @@ As is discussed above, we carry out a regression model to predict the future par
 
 Considering our use case, we develop a web-based APP towards SFMTA, and the user interface is shown as follows.
 
-![](wireframes/wireframe1.png)
+![](pics/wireframe1.png)
 
 Fig. x Spatial Interface of the Webpage
 
 In this page (Fig. x), the APP gives a general sense of the spatial distribution of on-street parking demand. The time span can be selected by the selector, both real-time and predicted parking demand are integrated into this page.
 
-![](wireframes/wireframe2.png)
+![](pics/wireframe2.png)
 
 Fig. x+1 Temporal Interface of the Webpage
 
 In the page above (Fig. x+1), the APP focuses on the temporal distribution of the parking demand. Line charts and bar charts are applied to illustrate the change of parking demand across time. Users can also select the specific time series and fishnet grid ID with the selectors. When users click on Pricing Advice in the left bar, suggestions show up automatically according to the model prediction results.
 
-![](wireframes/wireframe3.png)
+![](pics/wireframe3.png)
 
 Fig. x+2 Revenue Analysis Interface of the Webpage
 
