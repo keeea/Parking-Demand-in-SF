@@ -42,6 +42,7 @@ library(mapview)
 library(gifski)
 library(gganimate)
 library(riem)
+library(cowplot)
 
 
 palette5 <- c('#24b3cb', '#21a1c1', '#1d8fb7', '#167dae', '#0c6ca4')
@@ -56,11 +57,11 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 ```
 
-# Data Wrangling and Feature Engineering
+# Data Loading and Wrangling 
 
-## Loading and wrangling data
+## Wrangling parking data
 
-We select six weeks, which is 07/16/2021 - 08/26/2021 (week29 - week34), as the time window to train and test models. First, load on-street parking data of meters and records. As it is plotted below, most of the on-street parking behaviors cluster in the northeastern section of San Francisco, including Financial District, China Town, Fisherman's Wharf, etc, where the daytime parking occupancy is closer to 80% and traffic congestion is more serious. So, we trimmed our study area into these seven neighborhoods: North Beach, Russian Hill, Nob Hill, Chinatown, Financial District/South Beach, Tenderloin, South of Market.
+We select six weeks, which is 07/16/2021 - 08/26/2021 (week29 - week34), as the time window to train and test models. First, load and wrangle on-street parking data of meters and records. As it is plotted below, most of the on-street parking behaviors cluster in the northeastern section of San Francisco, including the famous Fisherman's Wharf, where the daytime parking occupancy is closer to 80% and traffic congestion is more serious. So, we trimmed our study area into these ***seven neighborhoods***: North Beach, Russian Hill, Nob Hill, Chinatown, Financial District/South Beach, Tenderloin, South of Market.
 
 ```{r load data1}
 # import SF neighborhood boundaries
@@ -103,9 +104,11 @@ off_parking_sf <-
   st_transform('ESRI:102243')
 
 ggplot() + 
-  geom_sf(data = neighborhood_sf,fill="transparent",size=0.1) +
+  geom_sf(data = neighborhood_sf,fill="grey90",size=0.2) +
   geom_sf(data = street_parks_sf[sample(nrow(street_parks_sf),10000),] , colour=palette2[2], size=0.05, show.legend = "point") +
-  labs(title= "Street Park Meters in San Francisco")+
+  geom_sf(data = study_area, colour=palette5[2], size=1,fill="transparent") +
+  labs(title = "10,000 Random Parking in San Francisco",
+      subtitle= "07/16/2021 - 08/26/2021, Blue line for study areas")+
   mapTheme()
 
 
@@ -125,26 +128,13 @@ study_area <-
 
 ```
 
-```{r plot study area}
-density_plot <-   street_parks_sf[sample(nrow(street_parks_sf),3000),] %>% 
-  dplyr::select(geometry) %>% 
-  mutate(count = 1) %>% 
-  aggregate(., neighborhood_sf, sum) %>%
-  mutate(count = replace_na(count, 0))
-  
-ggplot() + 
-  geom_sf(data = neighborhood_sf,fill="transparent",size=0.1,) +
-  geom_sf(data = density_plot, aes(fill=count),size=0.1)+
-  scale_fill_manual(values = palette5_3,
-                      labels = qBr(density_plot, "count"),
-                      name = "Parking Records")+
-  geom_sf(data = study_area, colour=palette5[2], size=1,fill="transparent") +
-  labs(title = "3000 Random On-street Parking Distribution in San Francisco",
-      subtitle= "07/16/2021 - 08/26/2021, Blue line for study areas")+
-  mapTheme()
-```
+## Wrangling **opportunity factors**
 
-Then, load "opportunity factors"
+Then, load opportunity factors. The hypothesis here is that parking demand is a function of ***exposure***to a series of geospatial time lags, opportunity and prevent factors, such as built environment, neighborhood and road characteristics, respectively. Experience borrow from geospatial opportunities factors can be thought of as ***latent demand***- areas with occurrence possibility at a specific time even if a paeking has not actually been recorded at the same time.
+
+***Thirteen opportunity factors*** are chosen here: parking management district, retail spots, food spots, police incidents, street cleaning requests, graffiti, parking violations, shared car parking spots, street speeds limit, sidewalk width, white people percentage, average commute time, percentage of people who take public transportation to work in the neighborhood .
+
+To ensure that we can borrow most effective experience from opportunity factors, trim all event factors into those who happened between the same time window (07/16/2021 - 08/26/2021).
 
 ```{r load data2}
 
@@ -279,11 +269,11 @@ food_spot <- business  %>%
   st_transform('ESRI:102243')
 ```
 
-## Creating fishnet and joining with data
+# Feature Engineering and Exploratory Analysis
 
-### Creating fishnet
+## Creating fishnet- Selecting temporal units
 
-To represent the spatial trend in a regression-ready form, we aggregate all data into a lattice of grid cells called "fishnet". The fishnet is with 200m by 200m grid cells. The reason we apply grid cells as spatial units rather than individual meters or streets is that the grid is the most precise unit to reflect parking demand.
+To represent the spatial trend in a regression-ready form, we aggregate all data into a lattice of grid cells called "fishnet". The fishnet is with ***200m by 200m grid cells***. The reason we apply grid cells as spatial units rather than individual meters or streets is that the grid is the most precise unit to reflect parking demand.
 
 When people drive to a street and bring an on-street parking demand, meters on this street are generally homogeneous, people may choose any of them to park. Therefore, the occurrence of parking in a specific meter will be unpredictable and unstable due to chance. Sometimes, this will be the same case between approaching roads. As for why we did not use street as spatial unit, many streets in San Francisco are as long as miles, and bias will be huge in this way.
 
@@ -298,9 +288,9 @@ fishnet_sf <-
   mutate(uniqueID = rownames(.))
 ```
 
-### Joining meter data into fishnet
+## Joining meter and parking data into fishnet
 
-For all point-level data, like meters, parking records, police incidents, and etc., the way to aggregate data into fishnet is to get the count of point by cell.
+To join meter and parking data into fishnet, just count the object for each grid cell. As the map attached below, most of on-street meters and parking records still cluster in the northern study area.
 
 ```{r join meter data into fishnet}
 # select the fishnet grids with meters
@@ -314,12 +304,6 @@ meter_net <-
                        size=nrow(fishnet_sf), replace = TRUE)) %>%
   filter(countMeters>0)
 
-# plot fishnets with meters inside
-ggplot() +
-  geom_sf(data = meter_net, aes(fill = countMeters), color = NA) +
-  scale_fill_viridis() +
-  labs(title = "Fishnets with meters inside")+
-    mapTheme()
 
 meter_net <-
   meter_net %>%
@@ -327,9 +311,7 @@ meter_net <-
 
 ```
 
-### Joining parking data to the fishnet
-
-```{r join parking data into fishnet,fig.width=9}
+```{r join parking data into fishnet,fig.width=6}
 parking_net <- street_parks_sf %>% 
   mutate(count=1) %>% 
   st_join(meter_net,.) %>% 
@@ -339,28 +321,32 @@ parking_net <- street_parks_sf %>%
   left_join(meter_net) %>%
   st_sf()
 
-ggplot() +
+
+grid.arrange(ncol = 2,
+             ggplot() +
+  geom_sf(data = meter_net, aes(fill = q5(countMeters)), color = NA) +
+  scale_fill_manual(values = palette5_3,
+                      labels = qBr(meter_net, "countMeters"),
+                      name = "Real_Count")+
+  labs(title = "Parking meters in the fishnet")+
+    mapTheme(),
+  ggplot() +
   geom_sf(data = parking_net, aes(fill = q5(countPark)), color = NA) +
-  geom_sf(data = neighborhood_sf, fill = "transparent", size = 0.5)+
+  #geom_sf(data = neighborhood_sf, fill = "transparent", size = 0.5)+
   scale_fill_manual(values = palette5_3,
                       labels = qBr(parking_net, "countPark"),
                       name = "Parking Records")+
   labs(title = "Parking Counts in the fishnet")+
-    mapTheme()
-
-
-
-
-# plot parking information in grids with meters
-ggplot(parking_net, aes(countPark)) + 
-  geom_histogram(binwidth = 1, color = 'black', fill='white') +
-  labs(title = "Parking Number Distribution in Each Fishnet Grid",
-       subtitle = "2021-07-08 12:00-12:15")+
-  plotTheme()
-
+    mapTheme())
 ```
 
-### Joining police incidents to the fishnet
+## Joining opportunity factors into fishnet
+
+### Joining point-level data to the fishnet
+
+For all other point-level data, such as food spots, street cleaning request, parking violations and etc., the way to aggregate data into fishnet is also to ***get the count*** of point by cell. Distribution maps of factors are listed below. These opportunity factors illustrate slightly different spatial characteristics.
+
+Food and retail spots are mainly clustered in North San Francisco, while 311 requests (street cleaning, graffiti, and police incident) and parking violations are mostly in the west. Shared car on-street parking space tend to evenly distribute compared to other factors above.
 
 ```{r Joining police incidents to the fishnet}
 # put police incidents into fishnet grids
@@ -373,14 +359,156 @@ incident_net <- incidents %>%
   left_join(meter_net) %>%
   st_sf() 
 
-ggplot() +
-  geom_sf(data = incident_net, aes(fill = countIncident), color = NA) +
-  scale_fill_viridis() +
-  labs(title = "Police Incidents in Fishnet Grids")+
-    mapTheme()
+
 ```
 
-### Joining street speeds to the fishnet
+```{r Joining cleaning request to the fishnet, fig.width=3}
+clean_net <- street_clean %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countClean = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+
+```
+
+```{r Joining Graffiti to the fishnet}
+graffiti_net <- graffiti %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countGraffiti = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+
+```
+
+```{r Joining parking violation to the fishnet}
+parking_violation_net <- parking_violation %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countViolation = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+
+```
+
+```{r Joining shared car parking to the fishnet}
+carshare_net <- careshare_park %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countCarshare = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+
+```
+
+```{r Joining retail spots to the fishnet}
+retail_net <- retail_spot %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countRetail = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+
+```
+
+```{r Joining food spots to the fishnet, fig.width=3}
+food_net <- food_spot %>% 
+  mutate(count=1) %>% 
+  st_join(meter_net,.) %>% 
+  st_drop_geometry() %>% 
+  group_by(uniqueID) %>% 
+  summarize(countFood = sum(count,na.rm = T)) %>% 
+  left_join(meter_net) %>%
+  st_sf() 
+
+
+```
+
+```{r Joining parking management district to the fishnet}
+management_net <- st_join(st_centroid(meter_net),parking_district) %>% 
+  st_drop_geometry() %>% 
+  right_join(meter_net) %>% 
+  st_sf() %>% 
+  dplyr::select(uniqueID, pm_district_name)
+
+```
+
+```{r plot point-level maps,fig.width=6}
+grid.arrange(ncol = 4,
+             top = "Distribution of Opportunity Factors by the Fishnet",
+             ggplot() +
+  geom_sf(data = incident_net, aes(fill = q5(countIncident)), color = NA) +
+  scale_fill_manual(values = palette5_3,
+                      labels = qBr(incident_net, "countIncident"),
+                      name = "Count")+
+  labs(title = "Police Incidents ")+
+    mapTheme(),
+  ggplot() +
+  geom_sf(data = clean_net, aes(fill = q5(countClean)), color = NA) +
+  scale_fill_manual(values = palette5_3,
+                      labels = qBr(clean_net, "countClean"),
+                      name = "Count")+
+  labs(title = "Street Cleaning Request ")+
+  mapTheme(),
+  ggplot() +
+  geom_sf(data = retail_net, aes(fill = q5(countRetail)), color = NA) +
+  scale_fill_manual(values = palette5_3,
+                      labels = qBr(retail_net, "countRetail"),
+                      name = "Count")+
+  labs(title = "Retail Spots")+
+  mapTheme(),
+  ggplot() +
+  geom_sf(data = food_net, aes(fill = q5(countFood)), color = NA) +
+  scale_fill_manual(values = palette5_3,
+                      labels = c(0,2,4,7,13),
+                      name = "Count")+
+  labs(title = "Food Spots")+
+  mapTheme(),
+  ggplot() +
+  geom_sf(data = graffiti_net, aes(fill = q5(countGraffiti)), color = NA) +
+  scale_fill_manual(values = palette5_3,
+                      labels = c(0,1,2,5,10),
+                      name = "Count")+
+  labs(title = "Graffiti ")+
+  mapTheme(),
+  ggplot() +
+  geom_sf(data = parking_violation_net, aes(fill = countViolation), color = NA) +
+  scale_fill_gradient(low = palette5_3[1],
+                        high = palette5_3[5],
+                        name = "Count",
+                        guide = "colourbar") +
+  labs(title = "Parking Violation Request")+
+  mapTheme(),
+  ggplot() +
+  geom_sf(data = carshare_net, aes(fill = countCarshare), color = NA) +
+  scale_fill_gradient(low = palette5_3[1],
+                        high = palette5_3[5],
+                        name = "Count",
+                        guide = "colourbar") +
+  labs(title = "Shared Car Parking ")+
+  mapTheme())
+             
+```
+
+### Joining street-line-level data to the fishnet
+
+For street linear data, like street speed limit and width, the way to combine data with each grid cell is to calculate the ***average value*** of all streets that cross this cell. Sidewalk width tend to become bigger in the north section of the study area. Street speed limits are lower for the west region.
 
 ```{r Joining street speeds to the fishnet, fig.width=3}
 speed_net <- st_join(meter_net,street_speed) %>% 
@@ -393,16 +521,7 @@ speed_net <- st_join(meter_net,street_speed) %>%
   st_sf()
 
 
-ggplot() +
-  geom_sf(data = speed_net, aes(fill = q5(speedlimit)), color = NA) +
-  scale_fill_manual(values = palette5_3,
-                      labels = qBr(speed_net, "speedlimit"),
-                      name = "Real_Count")+
-  labs(title = "Street Speed in Fishnet Grids")+
-    mapTheme()
 ```
-
-### Joining sidewalk width to the fishnet
 
 ```{r Joining sidewalk width to the fishnet, fig.width=3}
 width_net <- st_join(meter_net,sidewalk) %>% 
@@ -413,18 +532,33 @@ width_net <- st_join(meter_net,sidewalk) %>%
   left_join(meter_net) %>% 
   st_sf()
 
-ggplot() +
+
+```
+
+```{r plot liear maps,fig.width=6}
+grid.arrange(ncol = 2,
+             top = "Distribution of Opportunity Factors by the Fishnet",
+             ggplot() +
+  geom_sf(data = speed_net, aes(fill = q5(speedlimit)), color = NA) +
+  scale_fill_manual(values = palette5_3,
+                      labels = qBr(speed_net, "speedlimit"),
+                      name = "Real_Count")+
+  labs(title = "Street Speed in Fishnet Grids")+
+    mapTheme(),
+  ggplot() +
   geom_sf(data = width_net, aes(fill = q5(sidewalk_width)), color = NA) +
   scale_fill_manual(values = palette5_3,
                       labels = qBr(width_net, "sidewalk_width"),
                       name = "Real_Count")+
   labs(title = "Sidewalk Width in Fishnet Grids")+
-    mapTheme()
+    mapTheme())
 ```
 
-### Joining neighborhood data to the fishnet
+### Joining polygon-level neighborhood data to the fishnet
 
-```{r Joining neighborhood data to the fishnett, fig.width=3}
+As for neighborhood data, we extract data from census and calculate to obtain three metrics. To join them with the fishnet, we calculate the ***average value*** of all block groups that intersect with this cell. As it's shown below, white race percentage, average commute time, percentage of people who take public transportation to work in the neighborhood .
+
+```{r Joining neighborhood data to the fishnett, fig.width=6}
 census_net <- st_join(meter_net,SF_census) %>% 
   dplyr::select(uniqueID,  Percent_White, Mean_Commute_Time, Percent_Taking_Public_Trans) %>% 
   st_drop_geometry() %>% 
@@ -435,165 +569,41 @@ census_net <- st_join(meter_net,SF_census) %>%
   left_join(meter_net) %>% 
   st_sf()
 
-census_net %>% 
-  dplyr::select(-Mean_Commute_Time) %>% 
-  gather(-uniqueID,-geometry,key=variable,value=value) %>% 
-  ggplot() +
-    geom_sf(aes(fill = value)) +
-    facet_wrap(~variable)+
-    scale_fill_viridis() +
-    labs(title = "Neighborhood Data in Fishnet Grids")+
-    mapTheme()
 
-census_net %>% 
+grid.arrange(ncol = 3,
+             top = "Distribution of Opportunity Factors by the Fishnet",
+             census_net %>% 
   dplyr::select(Mean_Commute_Time) %>% 
   ggplot() +
-    geom_sf(aes(fill = q5(Mean_Commute_Time))) +
+    geom_sf(aes(fill = q5(Mean_Commute_Time)),color="transparent") +
     scale_fill_manual(values = palette5_3,
                       labels = qBr(census_net, "Mean_Commute_Time"),
-                      name = "Real_Count")+
+                      name = "Time")+
     labs(title = "Average Commute time by Fishnet Grids")+
-    mapTheme()
+    mapTheme(),
+  census_net %>% 
+  dplyr::select(Percent_White) %>% 
+  ggplot() +
+    geom_sf(aes(fill = q5(Percent_White)),color="transparent") +
+    scale_fill_manual(values = palette5_3,
+                      labels = qBr(census_net, "Percent_White"),
+                      name = "Percent")+
+    labs(title = "Percentage of White Race by Fishnet Grids")+
+    mapTheme(),
+  census_net %>% 
+  dplyr::select(Percent_Taking_Public_Trans) %>% 
+  ggplot() +
+    geom_sf(aes(fill = q5(Percent_Taking_Public_Trans)),color="transparent") +
+    scale_fill_manual(values = palette5_3,
+                      labels = qBr(census_net, "Percent_Taking_Public_Trans"),
+                      name = "Percentage")+
+    labs(title = "Percentage of People Who Take Public\n Transportation to Work by Fishnet Grids")+
+    mapTheme())
 ```
 
-### Joining cleaning request to the fishnet
+## Combining all variables into one fishnet
 
-```{r Joining cleaning request to the fishnet, fig.width=3}
-clean_net <- street_clean %>% 
-  mutate(count=1) %>% 
-  st_join(meter_net,.) %>% 
-  st_drop_geometry() %>% 
-  group_by(uniqueID) %>% 
-  summarize(countClean = sum(count,na.rm = T)) %>% 
-  left_join(meter_net) %>%
-  st_sf() 
-
-ggplot() +
-  geom_sf(data = clean_net, aes(fill = q5(countClean)), color = NA) +
-  scale_fill_manual(values = palette5_3,
-                      labels = qBr(clean_net, "countClean"),
-                      name = "Count")+
-  labs(title = "Street Cleaning Request in Fishnet Grids")+
-  mapTheme()
-```
-
-### Joining Graffiti to the fishnet
-
-```{r Joining Graffiti to the fishnet}
-graffiti_net <- graffiti %>% 
-  mutate(count=1) %>% 
-  st_join(meter_net,.) %>% 
-  st_drop_geometry() %>% 
-  group_by(uniqueID) %>% 
-  summarize(countGraffiti = sum(count,na.rm = T)) %>% 
-  left_join(meter_net) %>%
-  st_sf() 
-
-ggplot() +
-  geom_sf(data = graffiti_net, aes(fill = countGraffiti), color = NA) +
-  scale_fill_viridis() +
-  labs(title = "Graffiti in Fishnet Grids")+
-  mapTheme()
-```
-
-### Joining parking violation to the fishnet
-
-```{r Joining parking violation to the fishnet}
-parking_violation_net <- parking_violation %>% 
-  mutate(count=1) %>% 
-  st_join(meter_net,.) %>% 
-  st_drop_geometry() %>% 
-  group_by(uniqueID) %>% 
-  summarize(countViolation = sum(count,na.rm = T)) %>% 
-  left_join(meter_net) %>%
-  st_sf() 
-
-ggplot() +
-  geom_sf(data = parking_violation_net, aes(fill = countViolation), color = NA) +
-  scale_fill_viridis() +
-  labs(title = "Parking Violation Request in Fishnet Grids")+
-  mapTheme()
-```
-
-### Joining parking management district to the fishnet
-
-fill_viridis() +
-
-```{r Joining parking management district to the fishnet}
-management_net <- st_join(st_centroid(meter_net),parking_district) %>% 
-  st_drop_geometry() %>% 
-  right_join(meter_net) %>% 
-  st_sf() %>% 
-  dplyr::select(uniqueID, pm_district_name)
-
-ggplot() +
-  geom_sf(data = management_net, aes(fill = pm_district_name), color = NA) +
-  labs(title = "Parking Management District in Fishnet Grids")+
-    mapTheme()
-```
-
-### 
-
-### Joining shared car parking to the fishnet
-
-```{r Joining shared car parking to the fishnet}
-carshare_net <- careshare_park %>% 
-  mutate(count=1) %>% 
-  st_join(meter_net,.) %>% 
-  st_drop_geometry() %>% 
-  group_by(uniqueID) %>% 
-  summarize(countCarshare = sum(count,na.rm = T)) %>% 
-  left_join(meter_net) %>%
-  st_sf() 
-
-ggplot() +
-  geom_sf(data = carshare_net, aes(fill = countCarshare), color = NA) +
-  scale_fill_viridis() +
-  labs(title = "Shared Car Parking in Fishnet Grids")+
-  mapTheme()
-```
-
-### Joining retail spots to the fishnet
-
-```{r Joining retail spots to the fishnet}
-retail_net <- retail_spot %>% 
-  mutate(count=1) %>% 
-  st_join(meter_net,.) %>% 
-  st_drop_geometry() %>% 
-  group_by(uniqueID) %>% 
-  summarize(countRetail = sum(count,na.rm = T)) %>% 
-  left_join(meter_net) %>%
-  st_sf() 
-
-ggplot() +
-  geom_sf(data = retail_net, aes(fill = countRetail), color = NA) +
-  scale_fill_viridis() +
-  labs(title = "Retail Spots in Fishnet Grids")+
-  mapTheme()
-```
-
-### Joining food spots to the fishnet
-
-```{r Joining food spots to the fishnet, fig.width=3}
-food_net <- food_spot %>% 
-  mutate(count=1) %>% 
-  st_join(meter_net,.) %>% 
-  st_drop_geometry() %>% 
-  group_by(uniqueID) %>% 
-  summarize(countFood = sum(count,na.rm = T)) %>% 
-  left_join(meter_net) %>%
-  st_sf() 
-
-ggplot() +
-  geom_sf(data = food_net, aes(fill = q5(countFood)), color = NA) +
-  scale_fill_manual(values = palette5_3,
-                      labels = qBr(food_net, "countFood"),
-                      name = "Real_Count")+
-  labs(title = "Food Spots in Fishnet Grids")+
-  mapTheme()
-```
-
-### Combining all other factors into one fishnet
+Combine all opportunity factors and parking data together to create a final net data set.
 
 ```{r Combining all factors into one fishnet}
 centroid_fishnet <- st_centroid(meter_net) %>%
@@ -620,9 +630,11 @@ var_net <-
 
 ```
 
-### 
+## Creating the space/time panel- Selecting temporal units
 
-## Creating the space/time panel
+Here, we choose ***60 minutes*** as the ***temporal unit*** after contrasting to 30-min, 15-min and 2-hour interval. When the serial unit is less than 60 minutes, there will be more time intervals with constant total parking amount, which means there is no parking for many situations of space-time combination. Therefore, tremendous amount of 0 value in many temporal units result in less accuracy of models. On the contrary, when the serial unit is longer than 60 minutes, the resolution will be too coarse to estimate accurate models.
+
+With 60-minute temporal unit, create a complete panel with an observation for every possible space-time combination for the later analysis, and count trips for each combination. There are 83,160 possible combinations while there are 735,696 actual observations within study area. The average parking amount in each grid-time combination is around 10. However, the average normalized value (parking amount / meter amount) in each combination is only 0.14. Given that using the sum of parking within a unit rather than the mean of parking within a unit rather can lead to more accurate prediction, our strategy here is predicting the sum count with models first, and then ***divide the sum of parking by the meter amount*** to transfer to the "incremental occupancy".
 
 ```{r Creating the space/time panel}
 # create space-time panel
@@ -660,21 +672,6 @@ park.panel.count <-
             by = c("uniqueID")) %>% 
   st_sf()
 
-# park.panel.mean <- 
-#   street_park_grid %>%
-#   st_drop_geometry() %>% 
-#   mutate(Park_Counter = 1) %>%
-#   right_join(park.panel,by=c("uniqueID","interval15")) %>% 
-#   group_by(interval15, uniqueID) %>%
-#   summarize(Real_Count = sum(Park_Counter, na.rm=T)) %>%
-#   ungroup() %>%
-#   mutate(week = week(interval15),
-#          dotw = wday(interval15, label = TRUE)) %>% 
-#   left_join(meter_net) %>%
-#   left_join(var_net) %>% 
-#   mutate(mean = Real_Count/countMeters) %>%
-#   st_sf() 
-
 # add time lag to the panel
 park.panel.lag <- 
   park.panel.count %>% 
@@ -688,15 +685,20 @@ park.panel.lag <-
 
 ```
 
+## Split train and test data sets
+
+Split six-week data into a four-week train set (weeks 29 - 32), and a two-week test set (weeks 33 - 34) for later modeling. Notice that each week here is from Friday to next Thursday.
+
 ```{r Spliting data into train/test sets}
 park.Train <- filter(park.panel.lag, week <= 32)
 park.Test <- filter(park.panel.lag, week > 32) %>% 
-  filter(uniqueID != 101)
+  filter(uniqueID != 101) %>% 
+  filter(hour(interval60) >= 9 & hour(interval60) <=18)
 ```
 
-# Exploratory Analysis
+## Further exploratory analysis
 
-## Serial autocorrelation
+### Serial autocorrelation
 
 ```{r parking by week,fig.width=6,fig.height=2}
 fridays <- 
@@ -707,7 +709,8 @@ fridays <-
 
 
 st_drop_geometry(rbind(
-  mutate(park.Train, Legend = "Training"), 
+  mutate(park.Train%>% 
+  filter(hour(interval60) >= 9 & hour(interval60) <=18), Legend = "Training"), 
   mutate(park.Test, Legend = "Testing"))) %>%
     group_by(Legend, interval60) %>% 
       summarize(Real_Count = sum(Real_Count)) %>%
@@ -744,7 +747,7 @@ ggplot(plotData.lag, aes(Value, Real_Count)) +
   plotTheme()
 ```
 
-## Spatial autocorrelation
+### Spatial autocorrelation
 
 ```{r spatial correlation map by week,fig.width=6,fig.height=2}
 spatial_plot <- group_by(park.panel.lag, week, uniqueID) %>%
@@ -776,7 +779,7 @@ spatial_plot %>%
     mapTheme() + theme(legend.position = "bottom") 
 ```
 
-## Space/time correlation
+### Space/time correlation
 
 ```{r Space/time correlation gif}
 week30 <-
@@ -785,10 +788,10 @@ week30 <-
 
 park.animation.data <- week30 %>% 
     mutate(Parkings = case_when(Real_Count == 0 ~ "0 parkings",
-                             Real_Count > 0 & Real_Count <= 3 ~ "1-3 parkings",
-                             Real_Count > 3 & Real_Count <= 6 ~ "4-6 parkings",
-                             Real_Count > 6 & Real_Count <= 10 ~ "7-10 parkings",
-                             Real_Count > 10 ~ "11+ parkings")) %>%
+                             Real_Count > 0 & Real_Count <= 4 ~ "1-4 parkings",
+                             Real_Count > 4 & Real_Count <= 8 ~ "5-8 parkings",
+                             Real_Count > 8 & Real_Count <= 12 ~ "9-12 parkings",
+                             Real_Count > 12 ~ "13+ parkings")) %>%
     mutate(Parkings  = fct_relevel(Parkings, "0 parkings","1-3 parkings","4-6 parkings",
                                        "7-10 parkings","10+ parkings"))
 
@@ -805,17 +808,21 @@ park_animation <-
 anim_save("parking.gif", park_animation, duration=10, renderer = gifski_renderer())
 ```
 
+![](images/parking.gif)
+
 # Modeling and Validation
 
+## Kitchen sink models
+
 ```{r Creating models}
-linear_reg7 <- 
+linear_reg1 <- 
   lm(Real_Count ~  hour + dotw + uniqueID ,  data=park.Train)
 
-linear_reg8 <- 
+linear_reg2 <- 
   lm(Real_Count ~   hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay,
      data=park.Train)
 
-linear_reg9 <- 
+linear_reg3 <- 
   lm(Real_Count ~  hour + dotw  + lagHour + lag2Hours +lag3Hours + lagDay
      + off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans
      + countClean + countFood + countGraffiti + countIncident + countViolation + countRetail
@@ -823,29 +830,16 @@ linear_reg9 <-
      data=park.Train)
 
 
-#poisson_reg1 <- glm(formula = Real_Count ~ hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay, data = park.Train, family = poisson)
+poisson_reg1 <- glm(formula = Real_Count ~ hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay, data = park.Train, family = poisson)
 
-#poisson_reg2 <- glm(formula = Real_Count ~  hour + dotw + uniqueID + lagHour + lag2Hours +lag3Hours + lagDay+ off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans+ countClean + countFood + countGraffiti + countIncident + countViolation + countRetail+ pm_district_name + speedlimit + sidewalk_width, data = park.Train, family = poisson)
 
-# # summary(linear_reg8)
-# AIC(linear_reg7)
+poisson_reg2 <- glm(formula = Real_Count ~  hour + dotw  + lagHour + lag2Hours +lag3Hours + lagDay+ off_parking.nn + countCarshare + Percent_White + Mean_Commute_Time + Percent_Taking_Public_Trans+ countClean + countFood + countGraffiti + countIncident + countViolation + countRetail+ pm_district_name + speedlimit + sidewalk_width, data = park.Train, family = poisson)
+
+# # summary(linear_reg2)
+# AIC(linear_reg1)
 ```
 
-AIC:
-
-linear_reg7 : 377192.9
-
-linear_reg8 : 279639.6
-
-poisson_reg1 : 367926
-
-poisson_reg2 : 298300
-
-R2:
-
-linear_reg7 : 0.7778
-
-linear_reg8 : 0.7391
+### Validate test set of by time
 
 ```{r Testing accuracy of the models}
 park.Test.weekNest <- 
@@ -856,90 +850,92 @@ park.Test.weekNest <-
 model_pred <- function(dat, fit){
    pred <- predict(fit, newdata = dat)}
 
-week_predictions <- 
+week_predictions.1 <- 
   park.Test.weekNest %>% 
-    mutate(A_linear_reg7 = map(.x = data, fit = linear_reg7, .f = model_pred),
-           B_linear_reg8 = map(.x = data, fit = linear_reg8, .f = model_pred),
-           C_linear_reg9 = map(.x = data, fit = linear_reg9, .f = model_pred)
-           #D_poisson_reg1 = map(.x = data, fit = poisson_reg1, .f = model_pred),
-           #E_poisson_reg2 = map(.x = data, fit = poisson_reg2, .f = model_pred)
+    mutate(A_linear_reg1 = map(.x = data, fit = linear_reg1, .f = model_pred),
+           B_linear_reg2 = map(.x = data, fit = linear_reg2, .f = model_pred),
+           C_linear_reg3 = map(.x = data, fit = linear_reg3, .f = model_pred)
            )
 
-week_predictions
+week_predictions.2 <- 
+  park.Test.weekNest %>% 
+    mutate(D_poisson_reg1 = map(.x = data, fit = poisson_reg1, .f = model_pred),
+           E_poisson_reg2 = map(.x = data, fit = poisson_reg2, .f = model_pred)
+           )
 ```
 
 ```{r Ploting the MAE, fig.width=4}
-week_predictions <- week_predictions %>%  
+week_predictions <- week_predictions.1 %>%  
     gather(Regression, Prediction, -data, -week) %>% 
     mutate(Observed = map(data, pull, Real_Count),
-# we do not have countMeters here
-#           Observed_mean = map2(Observed, countMeters, ~ (.x / .y)),
-#           Prediction_mean = map2(Prediction, countMeters, ~ (.x / .y)),
            Absolute_Error = map2(Observed, Prediction,  ~ abs(.x - .y)),
            MAE = map_dbl(Absolute_Error, mean),
+           sd_AE = map_dbl(Absolute_Error, sd)) %>% 
+  rbind(
+    week_predictions.2 %>%  
+    gather(Regression, Prediction, -data, -week) %>% 
+    mutate(Observed = map(data, pull, Real_Count),
+           Absolute_Error = map2(Observed, Prediction,  ~ abs(.x - exp(.y))),
+           MAE = map_dbl(Absolute_Error, mean),
            sd_AE = map_dbl(Absolute_Error, sd))
+  )
 
 week_predictions %>%
   dplyr::select(week, Regression, MAE) %>%
   gather(Variable, MAE, -Regression, -week) %>%
   ggplot(aes(week, MAE)) + 
     geom_bar(aes(fill = Regression), position = "dodge", stat="identity") +
-    scale_fill_manual(values = palette3) +
+    scale_fill_manual(values = palette5_2) +
     labs(title = "Mean Absolute Errors by model specification and week") +
   plotTheme()
 ```
 
-```{r plot the MAE of mean count, fig.width=4}
-test.result <- week_predictions %>% 
+```{r plot the MAE of mean count, fig.width=6}
+predictions_AverageMeter <- week_predictions %>% 
   mutate(interval60 = map(data, pull, interval60),
          uniqueID = map(data, pull, uniqueID)) %>%
-  dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
-  unnest(cols = c(interval60, uniqueID, Observed, Prediction)) %>%
+  dplyr::select(interval60, uniqueID, Observed, Prediction, Regression,week, Absolute_Error) %>%
+  unnest(cols = c(interval60, uniqueID, Observed, Prediction, Regression,week, Absolute_Error)) %>%
   left_join(park.Test %>% 
               dplyr::select(interval60, uniqueID, countMeters),
             by=c("interval60","uniqueID")) %>% 
-  mutate(Prediction_mean = Prediction/countMeters,
-         Observed_mean = Observed/countMeters,
-         Absolute_Error = abs(Prediction_mean - Observed_mean),
-         APE = Absolute_Error/Observed_mean) %>% 
+  mutate(Observed_mean = (Observed/countMeters),
+         Absolute_Error = (Absolute_Error/countMeters),
+         APE = (Absolute_Error/Observed_mean)) %>% 
+  st_sf() 
+
+predictions_AverageMeter <- filter(predictions_AverageMeter, Regression == "E_poisson_reg2"|Regression == "D_poisson_reg1") %>%
+  mutate(Prediction = exp(Prediction),
+         Prediction_mean = exp(Prediction)/countMeters) %>% 
+  rbind(
+    filter(predictions_AverageMeter, Regression != "E_poisson_reg2" & Regression != "D_poisson_reg1") %>% 
+    mutate(Prediction_mean = Prediction/countMeters)
+  )%>% 
+  st_sf()
+
+
+predictions_AverageMeter %>% 
+  filter(uniqueID !=103) %>% 
   group_by(Regression) %>% 
   summarize(MAE = mean(Absolute_Error,na.rm = T),
             MAPE = mean(APE,na.rm = T),
-            sd_AF = sd(Absolute_Error,na.rm = T)) 
-
-test.result %>% 
+            sd_AF = sd(Absolute_Error,na.rm = T))  %>% 
   ggplot(aes(Regression, MAE)) + 
     geom_bar(aes(fill = Regression), position = "dodge", stat="identity") +
-    scale_fill_manual(values = palette3) +
+    scale_fill_manual(values = palette5_2) +
     labs(title = "Mean Absolute Errors by model specification and week",
-         subtitle = 'for mean parking counts in each grid') +
+         subtitle = 'For average parking counts within each grid') +
   plotTheme()
   
 ```
 
-```{r mape}
-x <- week_predictions %>% 
-  mutate(interval60 = map(data, pull, interval60),
-         uniqueID = map(data, pull, uniqueID)) %>%
-  dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
-  unnest(cols = c(interval60, uniqueID, Observed, Prediction)) %>%
-  left_join(park.Test %>% 
-              dplyr::select(interval60, uniqueID, countMeters),
-            by=c("interval60","uniqueID")) %>% 
-  mutate(Prediction_mean = Prediction/countMeters,
-         Observed_mean = Observed/countMeters,
-         Absolute_Error = abs(Prediction_mean - Observed_mean),
-         APE = Absolute_Error/Observed_mean)
-
-mean(x$Observed_mean)
+```{r simulate mape}
+mean(predictions_AverageMeter$Observed_mean)
 ```
 
-```{r Errors in time series, fig.width=6, fig.height=3}
-week_predictions %>% 
-    mutate(interval60 = map(data, pull, interval60),
-           uniqueID = map(data, pull, uniqueID)) %>%
-    dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
-    unnest() %>%
+```{r Errors in time series, fig.width=6, fig.height=5}
+st_drop_geometry(predictions_AverageMeter) %>% 
+    dplyr::select(Regression, interval60, uniqueID, Prediction, Observed) %>% 
     gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%
     group_by(Regression, Variable, interval60) %>%
     summarize(Value = sum(Value)) %>%
@@ -951,29 +947,91 @@ week_predictions %>%
   plotTheme()
 ```
 
-```{r Errors by Grids,fig.width=3}
-error_grid <-
-  week_predictions %>% 
-  mutate(interval60 = map(data, pull, interval60),
-         uniqueID = map(data, pull, uniqueID)) %>%
-  dplyr::select(interval60, uniqueID, Observed, Prediction, Regression) %>%
-  unnest() %>%
-  filter(Regression == "C_linear_reg9") %>%
-  left_join(park.Test %>% 
-              dplyr::select(interval60, uniqueID, countMeters),
-            by=c("interval60","uniqueID")) %>% 
-  mutate(Prediction_mean = Prediction/countMeters,
-         Observed_mean = Observed/countMeters,
-         Absolute_Error = abs(Prediction_mean - Observed_mean)) %>% 
-  group_by(uniqueID) %>%
-  summarize(MAE = mean(Absolute_Error, na.rm = TRUE))%>%
-  left_join(meter_net) %>%
-  dplyr::select(-countMeters) %>%
-  st_as_sf()
-  
-ggplot() +
-  geom_sf(data = error_grid, aes(fill = MAE), color = NA) +
-  scale_fill_viridis(option = "C")+
-  labs(title = "MAE by Grids")+
-  mapTheme()
+## Validate test set by space
+
+```{r Mean Absolute Errors by grid and by week,fig.width=3}
+predictions_AverageMeter %>% 
+  filter(Regression == "D_poisson_reg1" ) %>% 
+  group_by(uniqueID, week) %>% 
+  summarize(MAE = mean(Absolute_Error)) %>%
+  ungroup() %>% 
+  st_sf() %>% 
+  ggplot() + geom_sf(aes(fill = MAE)) +
+    facet_wrap(~week) +
+    scale_fill_gradient(low = palette5_3[1],
+                        high = palette5_3[5],
+                        name = "MAE",
+                        guide = "colourbar") +
+    labs(title="Mean Absolute Count Errors by grid and by hour",
+         subtitle = 'For average parking counts within each grid') +
+    mapTheme() 
 ```
+
+```{r Mean Absolute Count Errors by grid and by hour}
+error.animation.data <- predictions_AverageMeter %>%
+    filter(Regression == "D_poisson_reg1" ) %>% 
+    filter(wday(interval60, label = TRUE) == "Mon" & week == 33) %>%
+    group_by(interval60, uniqueID) %>%
+    summarize(MAE = mean(Absolute_Error)) %>% 
+    ungroup() %>% 
+    st_sf()
+
+MAE_animation <- 
+  ggplot() + geom_sf(data =  error.animation.data, aes(fill = MAE)) +
+    scale_fill_gradient(low = palette5_3[1],
+                        high = palette5_3[5],
+                        name = "MAE",
+                        guide = "colourbar") +
+    labs(title="Mean Absolute Count Errors by grid and by hour",
+         subtitle = '1 hour intervals: {current_frame} \nFor the Monday of Week 33; for average parking counts within each grid') +
+    transition_manual(interval60)+
+    mapTheme()
+    
+
+#animate(park_animation, duration=10, renderer = gifski_renderer())
+anim_save("MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
+```
+
+![](MAE.gif)
+
+## Cross Validation
+
+### Cross Validation fro OLS
+
+```{r Cross Validation}
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+
+reg.cv8 <- 
+  train(Real_Count ~ ., data = st_drop_geometry(park.Train) %>% 
+          dplyr::select(Real_Count, 
+                        hour,  dotw, uniqueID, lagHour, lag2Hours, lag3Hours, lagDay), 
+        method = "lm", trControl = fitControl, na.action = na.pass)
+
+
+MAE_reg8 <- reg.cv8$resample
+reg.cv8$resample[1:5,]
+```
+
+```{r  Ploting the distribution of MAEs in CV}
+ggplot(MAE_reg8, aes(MAE)) + 
+  geom_histogram(color="black", fill="white", binwidth = 0.02) +
+#  xlim(0, 1) +
+  labs(title = "Histogram of MAEs of Cross Validation", subtitle = "Model: Linear regression 8",  x = "MAE", y= "Count") 
+
+
+```
+
+AIC:
+
+linear 7: 363863.3
+
+linear 8: 289431.8
+
+poisson 1: 298255
+
+```{r}
+
+```
+
+![](images/paste-D17AD952.png)
