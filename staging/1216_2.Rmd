@@ -1183,7 +1183,8 @@ cv_result %>%
 ggplot(MAE_reg, aes(MAE)) + 
   geom_histogram(color="black", fill=palette2[1], binwidth = 0.02) +
 #  xlim(0, 1) +
-  labs(title = "Histogram of MAEs of Cross Validation", subtitle = "Model: OLS regression 4",  x = "MAE", y= "Count") 
+  labs(title = "Histogram of MAEs of Cross Validation", subtitle = "Model: OLS regression 4",  x = "MAE", y= "Count") +
+  plotTheme()
 
 
 ```
