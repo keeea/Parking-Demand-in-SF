@@ -1048,7 +1048,7 @@ st_drop_geometry(predictions_AverageMeter) %>%
 
 ## 5.2 Selecting kitchen sink models
 
-Given all AIC, MEA and predicted/observed time series, `OLS_reg2` and `OLS_reg3` performs best. Moreover, `OLS_reg3` is more flexible and generalizable, on account of that the spatial effects in the model is the equilibrium of different factors of environment, road and neighborhood, rather than a fixed number (which cannot be directly applied on surrounding cities).
+Given all AIC, MAE and predicted/observed time series, `OLS_reg2` and `OLS_reg3` perform best. Moreover, `OLS_reg3` is more flexible and generalizable, on account of that the spatial effects in the model is the equilibrium of different factors of environment, road and neighborhood, rather than a fixed number (which cannot be directly applied on surrounding cities).
 
 Next, we will further optimize `OLS_reg3` with more feature engineering.
 
@@ -1056,7 +1056,7 @@ Next, we will further optimize `OLS_reg3` with more feature engineering.
 
 ### 5.3.1 Further manual engineering
 
-First, time features, like hour, are more suitable to be modeled as categorical feature, so transform them into character. Then plot the correlation matrix for numeric variables, and remove variables that are significantly correlated with others. So graffiti and mean commute time are deleted to reduce the multicollinearity of the model.
+First, time features, like hour, are more suitable to be modeled as categorical feature, so we transform them into character. Then plot the correlation matrix for numeric variables, and remove variables that are significantly correlated with others. So graffiti and mean commute time are deleted to reduce the multicollinearity of the model.
 
 ```{r Engineering after regression}
 park.panel.engi <- park.panel.lag %>% 
@@ -1214,7 +1214,7 @@ anim_save("pics/MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer
 
 ## 5.5 Cross Validation
 
-To better test the generalizability of the OLS regression model, we apply cross validation here. The distribution of MAE cluster quite tightly together (most of which are from 3.3 to 3.8 approximately), and this suggest that the model have a quite good generalizability.
+To better test the generalizability of the engineered OLS regression model, we apply cross validation here. The distribution of MAE cluster quite tightly together (most of which are from 3.3 to 3.8 approximately), and this suggest that the engineered model have a quite good generalizability.
 
 ```{r Cross Validation, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE}
 fitControl <- trainControl(method = "cv", number = 100)
