@@ -863,7 +863,7 @@ park_animation <-
     mapTheme()
 
 #animate(park_animation, duration=10, renderer = gifski_renderer())
-anim_save("pics/parking.gif", park_animation, duration=10, renderer = gifski_renderer())
+#anim_save("pics/parking.gif", park_animation, duration=10, renderer = gifski_renderer())
 ```
 
 ![](pics/parking.gif)
@@ -1213,7 +1213,7 @@ MAE_animation <-
     
 
 #animate(park_animation, duration=10, renderer = gifski_renderer())
-anim_save("pics/MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
+#anim_save("pics/MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
 ```
 
 ![](pics/MAE.gif)
