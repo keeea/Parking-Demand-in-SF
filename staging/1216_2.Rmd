@@ -2,13 +2,6 @@
 title: "508_final"
 author: "Lan Xiao, Sisun Cheng"
 date: "12/5/2021"
-output: 
-  html_document:
-    toc: yes
-    toc_float: TRUE
-    code_folding: hide
-editor_options: 
-  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
