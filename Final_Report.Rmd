@@ -106,7 +106,7 @@ In this project, we aim to carry out a demand prediction model with satisfying s
 
 We select six weeks, which is ***07/16/2021 - 08/26/2021*** (week 29 - week 34), as the time window to train and test models. First, load and wrangle on-street parking data of meters and records. As it is plotted below, most of the on-street parking behaviors cluster in the northeastern section, where the daytime parking occupancy is closer to 80% and traffic congestion is more serious. Thus, we trimmed our study area into these ***seven neighborhoods***: North Beach, Russian Hill, Nob Hill, Chinatown, Financial District/South Beach, Tenderloin, South of Market.
 
-```{r load data1}
+```{r load data1, fig.width= 6}
 # import SF neighborhood boundaries
 neighborhood_sf <-
   st_read("local_data_source/Analysis Neighborhoods.geojson") %>%
@@ -162,7 +162,7 @@ study_area <-
   st_transform('ESRI:102243')
 
 ggplot() + 
-  geom_sf(data = neighborhood_sf,fill="#FDF9FA",size=0.2) +
+  geom_sf(data = neighborhood_sf,fill="#FDF9FA",size=0.1) +
   geom_sf(data = street_parks_sf[sample(nrow(street_parks_sf),10000),] , colour=palette2[2], size=0.05, show.legend = "point") +
   geom_sf(data = study_area, colour=palette5[2], size=1,fill="transparent") +
   labs(title = "10,000 Random Parking in San Francisco",
@@ -601,7 +601,7 @@ grid.arrange(ncol = 2,
 
 As for neighborhood data, we extract data from census and calculate to obtain three metrics. To join them with the fishnet, we calculate the ***average value*** of all block groups that intersect with this cell. As it's shown below, the three metrics are percentage of white, average commute time, percentage of people who take public transportation to work in the neighborhood .
 
-```{r Joining neighborhood data to the fishnett, fig.width=12}
+```{r Joining neighborhood data to the fishnett, fig.width=9}
 census_net <- st_join(meter_net,SF_census) %>% 
   dplyr::select(uniqueID,  Percent_White, Mean_Commute_Time, Percent_Taking_Public_Trans) %>% 
   st_drop_geometry() %>% 
@@ -622,7 +622,7 @@ grid.arrange(ncol = 3,
     scale_fill_manual(values = palette5_3,
                       labels = qBr(census_net, "Mean_Commute_Time"),
                       name = "Time")+
-    labs(title = "Average Commute time by Fishnet Grids")+
+    labs(title = "Average Commute time")+
     mapTheme(),
   census_net %>% 
   dplyr::select(Percent_White) %>% 
@@ -631,7 +631,7 @@ grid.arrange(ncol = 3,
     scale_fill_manual(values = palette5_3,
                       labels = qBr(census_net, "Percent_White"),
                       name = "Percent")+
-    labs(title = "Percentage of White Race by Fishnet Grids")+
+    labs(title = "Percentage of White Race")+
     mapTheme(),
   census_net %>% 
   dplyr::select(Percent_Taking_Public_Trans) %>% 
@@ -640,7 +640,7 @@ grid.arrange(ncol = 3,
     scale_fill_manual(values = palette5_3,
                       labels = qBr(census_net, "Percent_Taking_Public_Trans"),
                       name = "Percentage")+
-    labs(title = "Percentage of People Who Take Public\n Transportation to Work by Fishnet Grids")+
+    labs(title = "Percentage of People Who Take \n Public Transportation to Work")+
     mapTheme())
 ```
 
@@ -821,7 +821,7 @@ spatial_plot %>%
 
 We also make the maps of parking numbers in fishnet grids by the day of week to illustrate the temporal patten of every day in a week. As is shown below, the spatial distribution pattern appears consistent again, with parking concentrated in the Nob Hill, China Town, and North Beach.
 
-```{r spatial correlation map by dotw,fig.width=6}
+```{r spatial correlation map by dotw,fig.width=8}
 spatial_plot <- group_by(park.panel.lag, dotw, uniqueID) %>%
   summarize(Sum_Real_Count = sum(Real_Count)) %>%
   ungroup()
@@ -867,7 +867,7 @@ park_animation <-
 anim_save("pics/parking.gif", park_animation, duration=10, renderer = gifski_renderer())
 ```
 
-![](pics/parking.gif){width="450"}
+![](pics/parking.gif){width="500"}
 
 # 5. Modeling and Validation
 
@@ -993,7 +993,7 @@ week_predictions %>%
   plotTheme()
 ```
 
-```{r plot the MAE of mean count, fig.width=6,fig.height=4}
+```{r plot the MAE of mean count, fig.width=9,fig.height=4}
 predictions_AverageMeter <- week_predictions %>% 
   mutate(interval60 = map(data, pull, interval60),
          uniqueID = map(data, pull, uniqueID)) %>%
@@ -1034,7 +1034,7 @@ predictions_AverageMeter %>%
 
 Moreover, for each model, predicted and observed total parking is taken out of the spatial context and their means plotted in time series form below. With more sophistication comes the ability to predict for the lowest nadir, and the time lags help make this happen. Before and after the nadir is the free parking time.
 
-```{r Errors in time series}
+```{r Errors in time series,fig.height=12}
 st_drop_geometry(predictions_AverageMeter) %>% 
     dplyr::select(Regression, interval60, uniqueID, Prediction, Observed) %>% 
     gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%
@@ -1086,7 +1086,7 @@ park.panel.engi <- park.panel.engi %>%
 
 At last, put new variables into Stepwise regression to screen out the best model. Our final model shows as below:
 
-```{r stepwise, results=TRUE}
+```{r stepwise}
 park.Train2 <- filter(park.panel.engi, week <= 32)
 park.Test2 <- filter(park.panel.engi, week > 32) %>% 
   filter(uniqueID != 101) %>% 
@@ -1101,6 +1101,10 @@ OLS_reg4 <- lm(Real_Count ~  hour + dotw  + lagHour + lag2Hours +lag3Hours + lag
 
 
 step <- stepAIC(OLS_reg4, direction="both")
+
+```
+
+```{r step result, results=TRUE}
 step$anova
 #summary(step)
 ```
@@ -1172,7 +1176,7 @@ predictions_AverageMeter.2 %>%
 
 We also do the validation by space for `OLS_reg5`. As is shown in the map below, the model performs well in most of the grids, with a MAE of less than 0.1. There are also few outliers which shows high MAE. However, these outliers do not show a clustering pattern, which means our regression model has a good generalizability among the study area.
 
-```{r Mean Absolute Errors by grid and by week, fig.width=6}
+```{r Mean Absolute Errors by grid and by week, fig.width=4}
 predictions_AverageMeter %>% 
   filter(Regression == "C_OLS_reg3" ) %>% 
   group_by(uniqueID, week) %>% 
@@ -1217,7 +1221,7 @@ MAE_animation <-
 anim_save("pics/MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
 ```
 
-![](pics/MAE.gif){width="448"}
+![](pics/MAE.gif){width="500"}
 
 ## 5.5 Cross Validation
 
