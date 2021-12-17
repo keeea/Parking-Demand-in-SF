@@ -1,1 +1,0 @@
-"0","dat <- read.socrata(""https://data.cityofchicago.org/resource/fg6s-gzvg.csv?$where=start_time%20between%20%272018-05-1T12:00:00%27%20and%20%272018-05-31T14:00:00%27"")"

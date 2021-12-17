@@ -1,8 +1,0 @@
-"0",""
-"0","census_net %>% "
-"0","  dplyr::select(Mean_Commute_Time) %>% "
-"0","  ggplot() +"
-"0","    geom_sf(aes(fill = Mean_Commute_Time)) +"
-"0","    scale_fill_viridis() +"
-"0","    labs(title = ""Neighborhood Data in Fishnet Grids"")+"
-"0","    mapTheme()"

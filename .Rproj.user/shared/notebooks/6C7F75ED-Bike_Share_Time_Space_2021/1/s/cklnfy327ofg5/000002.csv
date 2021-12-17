@@ -1,4 +1,0 @@
-"0","# Install Census API Key"
-"0","census_api_key(""e79f3706b6d61249968c6ce88794f6f556e5bf3d"", overwrite = TRUE)"
-"2","To install your API key for use in future sessions, run this function with `install = TRUE`.
-"
