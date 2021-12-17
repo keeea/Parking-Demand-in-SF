@@ -1258,23 +1258,23 @@ As is discussed above, we carry out a regression model to predict the future par
 
 Considering our use case, we develop a web-based APP towards SFMTA, and the user interface is shown as follows. In the left navigation bar, there are a bunch of different functions for users to explore. Generally, we display our prediction results of parking occupancy and parking-related congestions in San Francisco, and give pricing advices according to the prediction. We also monitor the real-time parking hotspots, traffic hotspots, and real-time parking fee rate for users' reference. Other operation analysis like revenue monitoring, history simulation, and conclusion reports are also added to our APP to assist with the pricing process for SFMTA.
 
-![](pics/wireframe1.png)
-
-Fig. 2 Spatial Interface of the Webpage
-
 In this page (Fig. 2), the APP gives a general sense of the spatial distribution of on-street parking demand. The time span can be selected by the selector, both real-time and predicted parking demand are integrated into this page.
 
-![](pics/wireframe2.png)
+![](pics/wireframe1.png)
 
-Fig. 3 Temporal Interface of the Webpage
+Fig. 2 "Parking Occupancy by space" of the Webpage
 
 In the page above (Fig. 3), the APP focuses on the temporal distribution of the parking demand. Line charts and bar charts are applied to illustrate the change of parking demand across time. Users can also select the specific time series and fishnet grid ID with the selectors. When users click on Pricing Advice in the left bar, suggestions show up automatically according to the model prediction results.
 
-![](pics/wireframe3.png)
+![](pics/wireframe2.png)
 
-Fig. 4 Revenue Analysis Interface of the Webpage
+Fig. 3 "Parking Occupancy by time" of the Webpage
 
 In this page (Fig. 4), we visualize the revenue analysis based on the dynamic pricing model. The line chart here shows the change of accumulative parking revenue with time of the day. Users can also select the specific date and fishnet grid and generate the visualizations. The pie chart above shows the portion of each fishnet grid's revenue.
+
+![](pics/wireframe3.png)
+
+Fig. 4 "Revenue - Time" of the Webpage
 
 # 7. Conclusions
 
