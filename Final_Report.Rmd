@@ -867,7 +867,7 @@ park_animation <-
 anim_save("pics/parking.gif", park_animation, duration=10, renderer = gifski_renderer())
 ```
 
-![](pics/parking.gif){width="500"}
+![](pics/parking.gif){width="653"}
 
 # 5. Modeling and Validation
 
@@ -1221,7 +1221,7 @@ MAE_animation <-
 anim_save("pics/MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer())
 ```
 
-![](pics/MAE.gif){width="500"}
+![](pics/MAE.gif){width="650"}
 
 ## 5.5 Cross Validation
 
