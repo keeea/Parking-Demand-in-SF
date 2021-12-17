@@ -1082,7 +1082,7 @@ park.panel.engi <- park.panel.engi %>%
 
 ### 5.3.2 Stepwise to optimize
 
-At last, put new variables into Stepwise regression to screen out the best model.
+At last, put new variables into Stepwise regression to screen out the best model. Our final model shows as below:
 
 ```{r stepwise}
 park.Train2 <- filter(park.panel.engi, week <= 32)
@@ -1099,11 +1099,13 @@ OLS_reg4 <- lm(Real_Count ~  hour + dotw  + lagHour + lag2Hours +lag3Hours + lag
 
 
 step <- stepAIC(OLS_reg4, direction="both")
-#step$anova
+step$anova
 #summary(step)
 ```
 
 ### 5.3.3 Result after **optimization**
+
+After Stepwise regression, the algorithm remove predictors of parking violation and street speed limit. As the result of all additional feature engineering above, the R-squared improves from 0.7779 to 0.7845, and the second MAE (MAE for normalized parking value) decreases from 0.068 to 0.060, which means the average error we have on analogous new occupancy is 6% .
 
 ```{r engineered model result}
 park.Test.weekNest.2 <- 
@@ -1159,8 +1161,6 @@ predictions_AverageMeter.2 %>%
   plotTheme()
 ```
 
-After Stepwise regression, the algorithm remove predictors of parking violation and street speed limit. As the result of all additional feature engineering above, the R-squared improves from 0.7779 to 0.7845, and the second MAE (MAE for normalized parking value) decreases from 0.68 to 0.60.
-
 ## 5.4 Validate test set by space
 
 We also do the validation by space. As is shown in the map below, the model performs well in most of the grids, with a MAE of less than 0.4. There are also few outliers which shows high MAE. However, these outliers do not show a clustering pattern, which means our regression model has a good generalizability among the study area.
@@ -1183,7 +1183,7 @@ predictions_AverageMeter %>%
     mapTheme() 
 ```
 
-Here we generate an animated map of the MAEs by grid and by hour to see the spatio-temporal distribution of the model's MAE. We can see that for most of the time periods and most of the spatial units, our model perform well with a satisfying MAE.
+Here we generate an animated map of the normalized MAEs by grid and by hour to see the spatio-temporal distribution of the model's MAE. We can see that for most of the time periods and most of the spatial units, our model perform well with a satisfying MAE less than 0.4.
 
 ```{r Mean Absolute Count Errors by grid and by hour}
 error.animation.data <- predictions_AverageMeter %>%
@@ -1273,7 +1273,11 @@ In this page (Fig. x+2), we visualize the revenue analysis based on the dynamic 
 
 # 7. Conclusions
 
-In this project, we applied linear regression model and poisson regression model in predicting the on-street parking demands in San Francisco. Our linear model reaches a R2 of ..., while the poisson model's R2 is .... {briefly describe the model choice}.
+In this project, we applied OLS regression model and poisson regression in predicting the on-street parking demands in San Francisco. Our final optimal model reaches an AIC of 288788 and a R2 of 0.78, indicating that 78% of the variation in parking demand could we predict. Although there is still an error, the error on new parking of each grid cell within 1 hour is only 0.06, implying the average error on analogous new occupancy is 6% .
+
+Apart from business-as-usual variables, like time lags, this model also includes interesting predictors, such as how wide are the sidewalks, what percentage of people living in this neighborhood taking public transportation to work, how many restaurants surround, and etc. But he most important predictor is still the time lags, especially one-day lags, which describes the parking demand in the same area exactly one day ago.
+
+When the data size is large, we can
 
 Based on our model, SFMTA can more easily predict the demand of on-street parking, and adjust the parking fee rate in advance to prevent on-street parking from being overpriced or underpriced, so as to increase their revenue as well as reduce negative externalities brought by lack of parking lots.
 
