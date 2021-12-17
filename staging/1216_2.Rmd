@@ -59,9 +59,47 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 ```
 
-# Data Wrangling and Feature Engineering
+# 1. Introduction and Background
 
-## Loading and wrangling data
+The City and County of San Francisco, is a cultural, commercial, and financial center in the US state of California. Located in Northern California, San Francisco is the fourth most populous city in California, with 873,965 residents as of 2020. For the San Francisco metropolitan area, it is the 12th-largest metropolitan statistical area in the US with about 4.7 million residents, and the fourth-largest by economic output, with a GDP of \$592 billion in 2019.
+
+San Francisco is also a popular tourist destination, which is known for its cool summers, fog, steep rolling hills, eclectic mix of architecture, and landmarks, including the Golden Gate Bridge, cable cars, the former Alcatraz Federal Penitentiary, Fisherman's Wharf, and its Chinatown district. With so many famous resorts, San Francisco attracts over 26.5 million visitors in 2019.
+
+![](pics/SF_neighborhoods.jpg)
+
+Fig. x Map of neighborhoods in San Francisco
+
+With such a large population and huge number of visitors, it is extraordinarily difficult to find a parking space in San Francisco, especially in the downtown San Francisco, or near the tourist destinations. Most residents as well as visitors have experienced cruising and cruising on the street to find just a place to accommodate their car. On-street parking hot spots cluster in the northeastern section of San Francisco, including Financial District, China Town, Fisherman's Wharf, etc., where many commercial hot spots also gather here.
+
+To make the situation worse, San Francisco is also experiencing severe congestion every day, and San Francisco was ranked as the fifth-worst city in the world and third-worst in the nation when it came to traffic congestion in 2017, according to [a study](https://inrix.com/scorecard/). San Francisco Congestion Management Agency (SFCMA) has made great effort to reduce congestion, including their congestion management program and charging drivers for entering downtown San Francisco in specific time periods. Parking shortage and congestion really bring terrible experience for both residents and tourists.
+
+To solve the problem of parking shortage, the San Francisco Municipal Transportation Agency (SFMTA) has made great effort, and one of the effective methods is to carry out a better pricing plan for on-street parking. San Francisco is one of the first cities to apply a dynamic park pricing method, many on-street parking meters only operate from Monday to Saturday, between 9am and 6pm. The parking fee rate differs by the day of the week and time of day. Generally, the parking fee rate in San Francisco is shown in the table below.
+
+Table 1 Current Parking Fee Rate in San Francisco
+
+![](pics/parking_fee.png)
+
+# 2. Use Case
+
+## 2.1 General Use Case
+
+For this project, our main stakeholder is SFMTA which operates most of the on-street parking in San Francisco. We want to carry out a prediction model to help SFMTA with parking pricing process.
+
+Many researchers and planners believe that parking is underpriced in the US, and therefore leading to parking shortage and overuse of parking facilities. According to Donald Shoup (2004), when curbside parking spaces are overcrowded, and vacant spaces are unavailable, drivers "cruise" in search of parking. Cruising creates negative externalities including congestion, air pollution and unnecessary fuel consumption. If the parking price can cooperate with the parking demand and keep an on-street parking vacancy of 20-30%, cruising will be significantly reduced. Thus, it is of vital importance to carry out suitable pricing method for on-street parking in San Francisco, and the demand-based dynamic pricing model is a good choice.
+
+## 2.2 Demand-based Dynamic Pricing Model
+
+The model works as follows, SFMTA sets a floating price according to a real-time demand or predicted demand, so that parking demand and supply can be balanced to keep a on-street parking vacancy of about 20-30%, minimizing the time it takes to find parking and minimizing the negative externalities.
+
+To take full use of the demand-based dynamic pricing model, we need to identify the parking demands. Compared to real-time parking demands from the real-time parking data, predictions of parking demands can help SFMTA adjust their parking fee rate in advance, before the upcoming parking peaks, so that they can make more reasonable changes in price.
+
+## 2.3 Our Goals
+
+In this project, we aim to carry out a demand prediction model with satisfying spatio-temporal accuracy and generalizability in San Francisco region. Then we'd apply the prediction result of this model in the demand-based dynamic pricing model and design an APP to manage parking congestion through price manipulation in order to optimize occupancy and reduce traffic congestion. On top of that, our goal is also to make the overall revenues rise, occupancy move towards target ranges on most streets and price changes have the intended impact on driver behavior in San Francisco.
+
+# 3. Data Wrangling and Feature Engineering
+
+## 3.1 Loading and wrangling data
 
 We select six weeks, which is 07/16/2021 - 08/26/2021 (week29 - week34), as the time window to train and test models. First, load and wrangle on-street parking data of meters and records. As it is plotted below, most of the on-street parking behaviors cluster in the northeastern section of San Francisco, including the famous Fisherman's Wharf, where the daytime parking occupancy is closer to 80% and traffic congestion is more serious. So, we trimmed our study area into these ***seven neighborhoods***: North Beach, Russian Hill, Nob Hill, Chinatown, Financial District/South Beach, Tenderloin, South of Market.
 
@@ -131,7 +169,7 @@ ggplot() +
 
 ```
 
-Then, load opportunity factors. The hypothesis here is that parking demand is a function of ***exposure***to a series of geospatial time lags, opportunity and prevent factors, such as built environment, neighborhood and road characteristics, respectively. Experience borrow from geospatial opportunities factors can be thought of as ***latent demand***- areas with occurrence possibility at a specific time even if a paeking has not actually been recorded at the same time.
+Then, load opportunity factors. The hypothesis here is that parking demand is a function of ***exposure*** to a series of geospatial time lags, opportunity and prevent factors, such as built environment, neighborhood and road characteristics, respectively. Experience borrow from geospatial opportunities factors can be thought of as ***latent demand***- areas with occurrence possibility at a specific time even if a paeking has not actually been recorded at the same time.
 
 ***Thirteen opportunity factors*** are chosen here: parking management district, retail spots, food spots, police incidents, street cleaning requests, graffiti, parking violations, shared car parking spots, street speeds limit, sidewalk width, white people percentage, average commute time, percentage of people who take public transportation to work in the neighborhood .
 
@@ -270,9 +308,9 @@ food_spot <- business  %>%
   st_transform('ESRI:102243')
 ```
 
-# Creating fishnet and joining with data
+## 3.2 Creating fishnet and joining with data
 
-## Creating fishnet- Selecting temporal units
+### 3.2.1 Creating fishnet- Selecting temporal units
 
 To represent the spatial trend in a regression-ready form, we aggregate all data into a lattice of grid cells called "fishnet". The fishnet is with ***200m by 200m grid cells***. The reason we apply grid cells as spatial units rather than individual meters or streets is that the grid is the most precise unit to reflect parking demand.
 
@@ -289,7 +327,7 @@ fishnet_sf <-
   mutate(uniqueID = rownames(.))
 ```
 
-## Joining meter and parking data into fishnet
+### 3.2.2 Joining meter and parking data into fishnet
 
 To join meter and parking data into fishnet, just count the object for each grid cell. As the map attached below, most of on-street meters and parking records still cluster in the northern study area.
 
@@ -341,9 +379,9 @@ grid.arrange(ncol = 2,
     mapTheme())
 ```
 
-## Joining opportunity factors into fishnet
+## 3.3 Joining opportunity factors into fishnet
 
-### Joining point-level data to the fishnet
+### 3.3.1 Joining point-level data to the fishnet
 
 For all other point-level data, such as food spots, street cleaning request, parking violations and etc., the way to aggregate data into fishnet is also to ***get the count*** of point by cell. Distribution maps of factors are listed below. These opportunity factors illustrate slightly different spatial characteristics.
 
@@ -507,7 +545,7 @@ grid.arrange(ncol = 4,
              
 ```
 
-### Joining street-line-level data to the fishnet
+### 3.3.2 Joining street-line-level data to the fishnet
 
 For street OLS data, like street speed limit and width, the way to combine data with each grid cell is to calculate the ***average value*** of all streets that cross this cell. Sidewalk width tend to become bigger in the north section of the study area. Street speed limits are lower for the west region.
 
@@ -555,7 +593,7 @@ grid.arrange(ncol = 2,
     mapTheme())
 ```
 
-### Joining polygon-level neighborhood data to the fishnet
+### 3.3.3 Joining polygon-level neighborhood data to the fishnet
 
 As for neighborhood data, we extract data from census and calculate to obtain three metrics. To join them with the fishnet, we calculate the ***average value*** of all block groups that intersect with this cell. As it's shown below, white race percentage, average commute time, percentage of people who take public transportation to work in the neighborhood .
 
@@ -602,7 +640,7 @@ grid.arrange(ncol = 3,
     mapTheme())
 ```
 
-### Combining all variables into one fishnet
+### 3.3.4 Combining all variables into one fishnet
 
 Combine all opportunity factors and parking data together to create a final net data set.
 
@@ -631,7 +669,7 @@ var_net <-
 
 ```
 
-## Creating the space/time panel- Selecting temporal units
+## 3.4 Creating the space/time panel- Selecting temporal units
 
 Here, we choose ***60 minutes*** as the ***temporal unit*** after contrasting to 30-min, 15-min and 2-hour interval. When the serial unit is less than 60 minutes, there will be more time intervals with constant total parking amount, which means there is no parking for many situations of space-time combination. Therefore, tremendous amount of 0 value in many temporal units result in less accuracy of models. On the contrary, when the serial unit is longer than 60 minutes, the resolution will be too coarse to estimate accurate models.
 
@@ -686,7 +724,7 @@ park.panel.lag <-
 
 ```
 
-## Split train and test data sets
+## 3.5 Split train and test data sets
 
 To measure whether we can borrow past experience to predict future parking demand, we split six-week data into a four-week train set (weeks 29 - 32), and a two-week test set (weeks 33 - 34) for later modeling. Notice that according to the wrangling package, each week here is from Friday to next Thursday.
 
@@ -701,9 +739,13 @@ park.Test <- filter(park.panel.lag, week > 32) %>%
   filter(hour(interval60) >= 9 & hour(interval60) <=18)
 ```
 
-# Further Exploratory Analysis
+# 4. Further Exploratory Analysis
 
-## Serial autocorrelation
+In this part, we focus on the exploratory analysis on our data, and try to figure out a suitable model according to the spatial and temporal pattern of the parking transactions.
+
+## 4.1 Serial autocorrelation
+
+Firstly, we examine the temporal distribution of the parking data. We plot the parking transactions by time with an interval of 60 minutes. The parking data shows a similar pattern of peaks and troughs every day and week, except weekends when on-street parking is free. Since we split the data in the last part, we give different color to the training and testing set of our data to be clearer and more precise.
 
 ```{r parking by week,fig.width=6,fig.height=2}
 fridays <- 
@@ -729,6 +771,8 @@ st_drop_geometry(rbind(
         plotTheme() + theme(panel.grid.major = element_blank())  
 ```
 
+Here we examined the correlation of parking data and the four time lags features we generated above. As is shown in the plot, lag of one hour has the best positive relationship with the original data, followed by lag of 2 hours and lag of one day. This can be interpreted that the nearer the time lag and the original time is, the more similar in parking data. Since there is an everyday pattern of parking data as well, we can see lag of one day also have a strong positive relationship with the original data, indicating we can use this as a feature in the model later.
+
 ```{r time lag correlation,fig.width=6,fig.height=2}
 # transfer to long form
 plotData.lag <- park.panel.lag %>% 
@@ -752,7 +796,9 @@ ggplot(plotData.lag, aes(Value, Real_Count)) +
   plotTheme()
 ```
 
-## Spatial autocorrelation
+## 4.2 Spatial autocorrelation
+
+To illustrate the spatial pattern of on-street parking data, we make the maps of parking numbers in fishnet grids by week. The parking records cluster in the north of the study region, showing a similar pattern every week.
 
 ```{r spatial correlation map by week,fig.width=6,fig.height=2}
 spatial_plot <- group_by(park.panel.lag, week, uniqueID) %>%
@@ -769,6 +815,8 @@ spatial_plot %>%
     mapTheme() + theme(legend.position = "bottom") 
 ```
 
+We also make the maps of parking numbers in fishnet grids by the day of week to illustrate the temporal patten of every day in a week. As is shown below, most parking lots are for free on Sundays. On Saturdays, there are more parking demands than usual weekdays, especially in the central of the study region. On weekdays, the results are quite similar.
+
 ```{r spatial correlation map by dotw,fig.width=6,fig.height=2}
 spatial_plot <- group_by(park.panel.lag, dotw, uniqueID) %>%
   summarize(Sum_Real_Count = sum(Real_Count)) %>%
@@ -784,7 +832,9 @@ spatial_plot %>%
     mapTheme() + theme(legend.position = "bottom") 
 ```
 
-## Space/time correlation
+## 4.3 Space/time correlation
+
+We generate an animated map to show the changing of parking numbers in both space and time.
 
 ```{r Space/time correlation gif}
 week30 <-
@@ -815,7 +865,7 @@ anim_save("parking.gif", park_animation, duration=10, renderer = gifski_renderer
 
 ![](images/parking.gif)
 
-# Modeling and Validation
+# 5. Modeling and Validation
 
 Parking amount is count-based variable, and according to the distribution histogram graphic below, its distribution is left skewed (which means there are many zero values). So ***Poisson regression*** looks like an ideal option here, but the counts are also sufficiently large to feel at ease with ***OLS***. So we will first try both algorithms, and the one leading to the most accurate and generalizable result will be the optimal choice.
 
@@ -826,9 +876,9 @@ ggplot(data = park.panel.lag, aes(Real_Count)) +
   plotTheme()
 ```
 
-## Kitchen sink models
+## 5.1 Kitchen sink models
 
-### Set up models
+### 5.1.1 Set up models
 
 To begin with, five kitchen sink regressions are estimated on train set, each with different effects:
 
@@ -884,7 +934,7 @@ result_AIC %>%
     row_spec(4, color = "black", background = palette5[1]) 
 ```
 
-### Validate test set of by time
+### 5.1.2 Validate test set of by time
 
 Then, validate models with Mean Absolute Error (MAE) and plot MAE by model by week. MAE here takes total parking amount in each time-space combination as observed value and prediction value. However, each cell has different number of meters. It's not fair to make pricing strategy based on total parking amount. So we will also create `parking amount / meter amount`as observed and prediction value to calculate ***the second MAE** and validate models.*
 
@@ -994,15 +1044,15 @@ st_drop_geometry(predictions_AverageMeter) %>%
   plotTheme()
 ```
 
-## Selecting kitchen sink models
+## 5.2 Selecting kitchen sink models
 
 Given all AIC, MEA and predicted/observed time series, `OLS_reg2` and `OLS_reg3` performs best. Moreover, `OLS_reg3` is more flexible and generalizable, on account of that the spatial effects in the model is the equilibrium of different factors of environment, road and neighborhood, rather than a fixed number (which cannot be directly applied on surrounding cities).
 
 Next, we will further optimize `OLS_reg3` with more feature engineering.
 
-## Engineered models
+## 5.3 Engineered models
 
-### Further manual engineering
+### 5.3.1 Further manual engineering
 
 First, time features, like hour, are more suitable to be modeled as categorical feature, so transform them into character. Then plot the correlation matrix for numeric variables, and remove variables that are significantly correlated with others. So graffiti and mean commute time are deleted to reduce the multicollinearity of the model.
 
@@ -1028,7 +1078,7 @@ park.panel.engi <- park.panel.engi %>%
   dplyr::select(-countGraffiti, -Mean_Commute_Time)
 ```
 
-### Stepwise to optimize
+### 5.3.2 Stepwise to optimize
 
 At last, put new variables into Stepwise regression to screen out the best model.
 
@@ -1051,7 +1101,7 @@ step <- stepAIC(OLS_reg4, direction="both")
 #summary(step)
 ```
 
-### Result after **optimization**
+### 5.3.3 Result after **optimization**
 
 ```{r engineered model result}
 park.Test.weekNest.2 <- 
@@ -1109,7 +1159,7 @@ predictions_AverageMeter.2 %>%
 
 After Stepwise regression, the algorithm remove predictors of parking violation and street speed limit. As the result of all additional feature engineering above, the R-squared improves from 0.7779 to 0.7845, and the second MAE (MAE for normalized parking value) decreases from 0.68 to 0.60.
 
-## Validate test set by space
+## 5.4 Validate test set by space
 
 We also do the validation by space. As is shown in the map below, the model performs well in most of the grids, with a MAE of less than 0.4. There are also few outliers which shows high MAE. However, these outliers do not show a clustering pattern, which means our regression model has a good generalizability among the study area.
 
@@ -1160,7 +1210,7 @@ MAE_animation <-
 
 ![](MAE.gif)
 
-## Cross Validation
+## 5.5 Cross Validation
 
 To better test the generalizability of the OLS regression model, we apply cross validation here. The distribution of MAE cluster quite tightly together (most of which are from 3.3 to 3.8 approximately), and this suggest that the model have a quite good generalizability.
 
@@ -1194,3 +1244,35 @@ ggplot(MAE_reg, aes(MAE)) +
 
 
 ```
+
+# 6. Applications
+
+As is discussed above, we carry out a regression model to predict the future parking demands in San Francisco, and we reach a satisfying accuracy. This prediction model serves as important data source for the demand-based dynamic pricing model. In our model, we input the parking numbers in each fishnet grid, together with the features of built environment, neighborhood, and road characteristics, and get the output of parking numbers for each grid 1 hour later. Then we transform the parking numbers into on-street parking vacancy in each grid by dividing the number of meters in each grid. According to the vacancy, we can give our advice on pricing strategies to SFMTA.
+
+Considering our use case, we develop a web-based APP towards SFMTA, and the user interface is shown as follows. In the left navigation bar, there are a bunch of different functions for users to explore. Generally, we display our prediction results of parking occupancy and parking-related congestions in San Francisco, and give pricing advices according to the prediction. We also monitor the real-time parking hotspots, traffic hotspots, and real-time parking fee rate for users' reference. Other operation analysis like revenue monitoring, history simulation, and conclusion reports are also added to our APP to assist with the pricing process for SFMTA.
+
+![](pics/wireframe1.png)
+
+Fig. x Spatial Interface of the Webpage
+
+In this page (Fig. x), the APP gives a general sense of the spatial distribution of on-street parking demand. The time span can be selected by the selector, both real-time and predicted parking demand are integrated into this page.
+
+![](pics/wireframe2.png)
+
+Fig. x+1 Temporal Interface of the Webpage
+
+In the page above (Fig. x+1), the APP focuses on the temporal distribution of the parking demand. Line charts and bar charts are applied to illustrate the change of parking demand across time. Users can also select the specific time series and fishnet grid ID with the selectors. When users click on Pricing Advice in the left bar, suggestions show up automatically according to the model prediction results.
+
+![](pics/wireframe3.png)
+
+Fig. x+2 Revenue Analysis Interface of the Webpage
+
+In this page (Fig. x+2), we visualize the revenue analysis based on the dynamic pricing model. The line chart here shows the change of accumulative parking revenue with time of the day. Users can also select the specific date and fishnet grid and generate the visualizations. The pie chart above shows the portion of each fishnet grid's revenue.
+
+# 7. Conclusions
+
+In this project, we applied linear regression model and poisson regression model in predicting the on-street parking demands in San Francisco. Our linear model reaches a R2 of ..., while the poisson model's R2 is .... {briefly describe the model choice}.
+
+Based on our model, SFMTA can more easily predict the demand of on-street parking, and adjust the parking fee rate in advance to prevent on-street parking from being overpriced or underpriced, so as to increase their revenue as well as reduce negative externalities brought by lack of parking lots.
+
+In the future, we can keep improving the model accuracy by importing feature data with higher spatial and temporal resolution. Other relevant feature data can also be applied to the model, which will probably add to model accuracy as well. We can also apply the model to the whole city of San Francisco, rather than the limited selected regions, to achieve a better generalizability.
