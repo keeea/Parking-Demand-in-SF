@@ -828,6 +828,8 @@ ggplot(data = park.panel.lag, aes(Real_Count)) +
 
 ## Kitchen sink models
 
+### Set up models
+
 To begin with, five kitchen sink regressions are estimated on train set, each with different effects:
 
 1.  `OLS_reg1` focus on **space fixed effects**,which is the unique ID of the grid; and **time fixed effects**, including hour and day of the week.
@@ -998,7 +1000,9 @@ Given all AIC, MEA and predicted/observed time series, `OLS_reg2` and `OLS_reg3`
 
 Next, we will further optimize `OLS_reg3` with more feature engineering.
 
-## Engineered regression
+## Engineered models
+
+### Further manual engineering
 
 First, time features, like hour, are more suitable to be modeled as categorical feature, so transform them into character. Then plot the correlation matrix for numeric variables, and remove variables that are significantly correlated with others. So graffiti and mean commute time are deleted to reduce the multicollinearity of the model.
 
@@ -1024,6 +1028,8 @@ park.panel.engi <- park.panel.engi %>%
   dplyr::select(-countGraffiti, -Mean_Commute_Time)
 ```
 
+### Stepwise to optimize
+
 At last, put new variables into Stepwise regression to screen out the best model.
 
 ```{r stepwise}
@@ -1044,6 +1050,8 @@ step <- stepAIC(OLS_reg4, direction="both")
 #step$anova
 #summary(step)
 ```
+
+### Result after **optimization**
 
 ```{r engineered model result}
 park.Test.weekNest.2 <- 
@@ -1153,8 +1161,6 @@ MAE_animation <-
 ![](MAE.gif)
 
 ## Cross Validation
-
-### Cross Validation fro OLS
 
 To better test the generalizability of the OLS regression model, we apply cross validation here. The distribution of MAE cluster quite tightly together (most of which are from 3.3 to 3.8 approximately), and this suggest that the model have a quite good generalizability.
 
