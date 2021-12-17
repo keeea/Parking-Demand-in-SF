@@ -1,8 +1,0 @@
-"0",""
-"0","# plot parking information in grids with meters"
-"0","ggplot(parking_net, aes(countPark)) + "
-"0","  geom_histogram(binwidth = 1, color = 'black', fill='white') +"
-"0","  labs(title = ""Parking Number Distribution in Each Fishnet Grid"","
-"0","       subtitle = ""2021-07-08 12:00-12:15"")+"
-"0","  plotTheme()"
-"0",""

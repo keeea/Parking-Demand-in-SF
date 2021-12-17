@@ -1,8 +1,0 @@
-"0","# create the fishnet and count the parking number"
-"0","fishnet_sf <- "
-"0","  st_make_grid(study_area,"
-"0","               cellsize = 200, "
-"0","               square = TRUE) %>%"
-"0","  .[study_area] %>%           "
-"0","  st_sf() %>%"
-"0","  mutate(uniqueID = rownames(.))"

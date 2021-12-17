@@ -1,6 +1,0 @@
-"0","library(gganimate)"
-"0","library(gifski)"
-"0","gganimate::animate(p, length = 15, width = 700, height = 400)"
-"2","Error in gganimate::animate(p, length = 15, width = 700, height = 400) : 
-  object 'p' not found
-"
