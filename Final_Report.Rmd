@@ -310,7 +310,7 @@ food_spot <- business  %>%
   st_transform('ESRI:102243')
 ```
 
-## 3.2 Creating fishnet and joining with data
+## 3.2 Creating fishnet and joining with parking data
 
 ### 3.2.1 Creating fishnet- Selecting temporal units
 
@@ -642,7 +642,7 @@ grid.arrange(ncol = 3,
     mapTheme())
 ```
 
-### 3.3.4 Combining all variables into one fishnet
+## 3.4 Combining all variables into one fishnet
 
 Here we combine all opportunity factors and parking data together to create a final net data set.
 
@@ -671,7 +671,7 @@ var_net <-
 
 ```
 
-## 3.4 Creating the space/time panel- Selecting temporal units
+## 3.5 Creating the space/time panel- Selecting temporal units
 
 Here, we choose ***60 minutes*** as the ***temporal unit*** after contrasting to 30-min, 15-min and 2-hour intervals. When the serial unit is less than 60 minutes, there will be more time intervals with constant total parking amount, which means there is no parking for many situations of space-time combination. Therefore, tremendous amount of 0 value in many temporal units result in low accuracy of models. On the contrary, when the serial unit is longer than 60 minutes, the resolution will be too coarse to estimate accurate models.
 
@@ -726,11 +726,11 @@ park.panel.lag <-
 
 ```
 
-## 3.5 Split train and test data sets
+## 3.6 Split train and test data sets
 
 To measure whether we can borrow past experience to predict future parking demand, we split six-week data into a four-week train set (weeks 29 - 32), and a two-week test set (weeks 33 - 34) for later modeling. Notice that according to the wrangling package, each week here is from Friday to next Thursday.
 
-Because most on-street parking in San Francisco will be free during 18:00 - 9:00, and meters won't be working and charging during that time, therefore we only have rare data for that time range. What's more, predicting that non-peak time when there are few cars parking is not significant for our use case. So we have trimmed data into opening hours.
+Because most on-street parking in San Francisco will be free during 18:00 - 9:00, and meters won't be working and charging during that time, we only have rare data for that time range. What's more, predicting that non-peak time when there are few cars parking is not significant for our use case. So we have trimmed data into opening hours.
 
 However, prediction near time endpoints, like 9:00 and 18:00, will be less accurate, because they don't have time lags in training data. Therefore, we will broaden two hours only for training data sets, which means the time window for training data is 8:00 -19:00, while the time window for testing data is 9:00 -18:00.
 
@@ -869,7 +869,7 @@ anim_save("pics/parking.gif", park_animation, duration=10, renderer = gifski_ren
 
 # 5. Modeling and Validation
 
-Parking amount is count-based variable, and according to the distribution histogram graphic below, its distribution is left skewed (which means there are many zero values). So ***Poisson regression*** looks like an ideal option here, but the counts are also sufficiently large to feel at ease with ***OLS***. So we will first try both algorithms, and the one leading to the most accurate and generalizable result will be the optimal choice.
+Parking amount is a count-based variable, and according to the distribution histogram graphic below, its distribution is left skewed (which means there are many zero values). So ***Poisson regression*** looks like an ideal option here, but the counts are also sufficiently large to feel at ease with ***OLS***. So we will first try both algorithms, and the one leading to the most accurate and generalizable result will be the optimal choice.
 
 ```{r hist}
 ggplot(data = park.panel.lag, aes(Real_Count)) + 
@@ -884,7 +884,7 @@ ggplot(data = park.panel.lag, aes(Real_Count)) +
 
 To begin with, five kitchen sink regressions are estimated on train set, each with different effects:
 
-1.  `OLS_reg1` focus on **space fixed effects**,which is the unique ID of the grid; and **time fixed effects**, including hour and day of the week.
+1.  `OLS_reg1` focus on **space fixed effects**, which is the unique ID of the grid; and **time fixed effects**, including hour and day of the week.
 
 2.  `OLS_reg2` adds **time lag features** to time and space fixed effects.
 
@@ -938,7 +938,7 @@ result_AIC %>%
 
 ### 5.1.2 Validate test set of by time
 
-Then, validate models with Mean Absolute Error (MAE) and plot MAE by model by week. MAE here takes total parking amount in each time-space combination as observed value and prediction value. However, each cell has different number of meters. It's not fair to make pricing strategy based on total parking amount. So we will also create `parking amount / meter amount`as observed and prediction value to calculate ***the second MAE** and validate models.*
+Then, validate models with Mean Absolute Error (MAE) and plot MAE by model by week. MAE here takes total parking amount in each time-space combination as observed value and prediction value. However, each cell has different number of meters. It's not fair to make pricing strategy based on total parking amount. So we will also create `parking amount / meter amount` as observed and prediction value to calculate ***the second MAE** and validate models.*
 
 As the bar plots shown below, time lags add significant predictive power, and the OLS regression with fixed spatial effects performs the same with the OLS regression with various spatial factors. In addition, OLS regression preforms better based the MAE of total parking, although OLS and Poisson regression is equally accurate based the MAE of normalized parking.
 
@@ -1276,8 +1276,6 @@ In this page (Fig. x+2), we visualize the revenue analysis based on the dynamic 
 In this project, we applied OLS regression model and poisson regression in predicting the on-street parking demands in San Francisco. Apart from business-as-usual variables, like time lags, this model also includes interesting predictors, such as how wide are the sidewalks, what percentage of people living in this neighborhood taking public transportation to work, how many restaurants surround, and etc. But he most important predictor is still the time lags, especially one-day lags, which describes the parking demand in the same area exactly one day ago.
 
 Our final optimal model reaches an AIC of 288788 and a R2 of 0.78, indicating that 78% of the variation in parking demand could we predict. Although there is still an error, the error on new parking of each grid cell within 1 hour is only 0.06, implying the average error on analogous new occupancy is 6% . In addition, there are several cells predict particularly poorly. Some of them are close to the bay street and famous Fisherman's Wharf, when the others in the position of the Yerba Buena Gardens that is surrounded by several well-known museums.
-
-When the data size is large, we can
 
 We definitely recommend our model to SFMTA. Based on our model, SFMTA can more easily predict the demand of on-street parking, and adjust the parking fee rate in advance to prevent on-street parking from being overpriced or underpriced, so as to increase their revenue as well as reduce negative externalities brought by lack of parking lots.
 
