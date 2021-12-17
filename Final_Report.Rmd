@@ -353,7 +353,7 @@ meter_net <-
 
 ```
 
-```{r join parking data into fishnet,fig.width=6}
+```{r join parking data into fishnet,fig.width=5}
 parking_net <- street_parks_sf %>% 
   mutate(count=1) %>% 
   st_join(meter_net,.) %>% 
@@ -553,7 +553,7 @@ grid.arrange(ncol = 4,
 
 For street OLS data, like street speed limit and width, the way to combine data with each grid cell is to calculate the ***average value*** of all streets that cross this cell. Sidewalk width tend to become bigger in the north section of the study area. Street speed limits are lower for the west region.
 
-```{r Joining street speeds to the fishnet, fig.width=6}
+```{r Joining street speeds to the fishnet, fig.width=5}
 speed_net <- st_join(meter_net,street_speed) %>% 
   dplyr::select(uniqueID, speedlimit) %>% 
   mutate(speedlimit=as.numeric(as.character(speedlimit))) %>% 
@@ -601,7 +601,7 @@ grid.arrange(ncol = 2,
 
 As for neighborhood data, we extract data from census and calculate to obtain three metrics. To join them with the fishnet, we calculate the ***average value*** of all block groups that intersect with this cell. As it's shown below, the three metrics are percentage of white, average commute time, percentage of people who take public transportation to work in the neighborhood .
 
-```{r Joining neighborhood data to the fishnett, fig.width=6}
+```{r Joining neighborhood data to the fishnett, fig.width=12}
 census_net <- st_join(meter_net,SF_census) %>% 
   dplyr::select(uniqueID,  Percent_White, Mean_Commute_Time, Percent_Taking_Public_Trans) %>% 
   st_drop_geometry() %>% 
@@ -751,7 +751,7 @@ In this part, we focus on the exploratory analysis on our data, and try to figur
 
 Firstly, we examine the temporal distribution of the parking data. We plot the parking transactions by time with an interval of 60 minutes. The parking data shows a similar pattern of peaks and troughs every day and week. Since we split the data in the last part, we give different color to the training and testing set of our data to be clearer and more precise.
 
-```{r parking by week,fig.width=6}
+```{r parking by week,fig.height=4}
 fridays <- 
   mutate(park.panel.lag,
          friday = ifelse(dotw == "Fri" & hour(interval60) == 9,
@@ -777,7 +777,7 @@ st_drop_geometry(rbind(
 
 Here we examined the correlation of parking data and the four time lags features we generated above. As is shown in the plot, the correlation decreases with additional lag hours, but predictive power returns with the 1 day lag. This can be interpreted that the nearer the time lag and the original time is, the more similar in parking data. Since there is an everyday pattern of parking data as well, we can see lag of one day also have a strong positive relationship with the original data, indicating we can use this as a feature in the model later.
 
-```{r time lag correlation,fig.width=6}
+```{r time lag correlation,fig.height=3}
 # transfer to long form
 plotData.lag <- park.panel.lag %>% 
   st_drop_geometry() %>% 
@@ -804,7 +804,7 @@ ggplot(plotData.lag, aes(Value, Real_Count)) +
 
 To illustrate the spatial pattern of on-street parking data, we make the maps of parking numbers in fishnet grids by week. The parking records cluster in the north of the study region, showing a similar pattern every week.
 
-```{r spatial correlation map by week,fig.width=6}
+```{r spatial correlation map by week}
 spatial_plot <- group_by(park.panel.lag, week, uniqueID) %>%
   summarize(Sum_Real_Count = sum(Real_Count)) %>%
   ungroup()
@@ -873,7 +873,7 @@ anim_save("pics/parking.gif", park_animation, duration=10, renderer = gifski_ren
 
 Parking amount is a ***count-based*** variable, and according to the distribution histogram graphic below, its distribution is ***right skewed*** (which means there are many zero values). So ***Poisson regression*** looks like an ideal option here, but the counts are also sufficiently large to feel at ease with ***OLS***. So we will first try both algorithms, and the one leading to the most accurate and generalizable result will be the optimal choice.
 
-```{r hist}
+```{r hist,fig.width=6,fig.height=4}
 ggplot(data = park.panel.lag, aes(Real_Count)) + 
   geom_histogram(bins = 20, colour="black", fill = palette2[1]) +
   labs(title="Distribution of Parking", subtitle = "by time-space combination", x="Parking Amount", y="count") +
@@ -898,7 +898,7 @@ To begin with, five kitchen sink regressions are estimated on train set, each wi
 
 Considering that we compared different regression method here, we use AIC to evaluate the quality of models. OLS_reg2, OLS_reg3, and poisson_reg1 performs better here.
 
-```{r Creating models, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE}
+```{r Creating models, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE, results=TRUE}
 OLS_reg1 <- 
   lm(Real_Count ~  hour + dotw + uniqueID ,  data=park.Train)
 
@@ -967,7 +967,7 @@ week_predictions.2 <-
            )
 ```
 
-```{r Ploting the MAE, fig.width=4}
+```{r Ploting the MAE,fig.width=6,fig.height=4}
 week_predictions <- week_predictions.1 %>%  
     gather(Regression, Prediction, -data, -week) %>% 
     mutate(Observed = map(data, pull, Real_Count),
@@ -993,7 +993,7 @@ week_predictions %>%
   plotTheme()
 ```
 
-```{r plot the MAE of mean count, fig.width=6}
+```{r plot the MAE of mean count, fig.width=6,fig.height=4}
 predictions_AverageMeter <- week_predictions %>% 
   mutate(interval60 = map(data, pull, interval60),
          uniqueID = map(data, pull, uniqueID)) %>%
@@ -1034,7 +1034,7 @@ predictions_AverageMeter %>%
 
 Moreover, for each model, predicted and observed total parking is taken out of the spatial context and their means plotted in time series form below. With more sophistication comes the ability to predict for the lowest nadir, and the time lags help make this happen. Before and after the nadir is the free parking time.
 
-```{r Errors in time series, fig.width=6}
+```{r Errors in time series}
 st_drop_geometry(predictions_AverageMeter) %>% 
     dplyr::select(Regression, interval60, uniqueID, Prediction, Observed) %>% 
     gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%
@@ -1066,7 +1066,7 @@ park.panel.engi <- park.panel.lag %>%
 
 ```
 
-```{r martix,fig.width=12}
+```{r martix,fig.width=9,fig.height=9}
 numericVars <- 
   select_if(st_drop_geometry(park.panel.engi), is.numeric) %>% na.omit()
 
@@ -1086,7 +1086,7 @@ park.panel.engi <- park.panel.engi %>%
 
 At last, put new variables into Stepwise regression to screen out the best model. Our final model shows as below:
 
-```{r stepwise}
+```{r stepwise, results=TRUE}
 park.Train2 <- filter(park.panel.engi, week <= 32)
 park.Test2 <- filter(park.panel.engi, week > 32) %>% 
   filter(uniqueID != 101) %>% 
@@ -1109,7 +1109,7 @@ step$anova
 
 After Stepwise regression, the algorithm remove predictors of parking violation and street speed limit. As the result of all additional feature engineering above, we achieve the final model `OLS_reg5`. The R-squared improves from 0.7779 to 0.7845. And the second MAE (MAE for normalized parking value) decreases from 0.068 to 0.060, which means the average error we have on analogous new occupancy is only 6% .
 
-```{r engineered model result}
+```{r engineered model result, fig.width=6,fig.height=4}
 OLS_reg5 <- lm(Real_Count ~ hour + dotw + lagHour + lag2Hours + lag3Hours + 
     lagDay + off_parking.nn + countCarshare + Percent_White + 
     Percent_Taking_Public_Trans + countClean + countFood + countIncident + 
@@ -1172,7 +1172,7 @@ predictions_AverageMeter.2 %>%
 
 We also do the validation by space for `OLS_reg5`. As is shown in the map below, the model performs well in most of the grids, with a MAE of less than 0.1. There are also few outliers which shows high MAE. However, these outliers do not show a clustering pattern, which means our regression model has a good generalizability among the study area.
 
-```{r Mean Absolute Errors by grid and by week}
+```{r Mean Absolute Errors by grid and by week, fig.width=6}
 predictions_AverageMeter %>% 
   filter(Regression == "C_OLS_reg3" ) %>% 
   group_by(uniqueID, week) %>% 
@@ -1223,7 +1223,7 @@ anim_save("pics/MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer
 
 To better test the generalizability of the engineered OLS regression model, we apply cross validation here. The distribution of MAE cluster quite tightly together (most of which are from 2.8 to 3.4 approximately), and this suggest that the engineered model have a quite good generalizability.
 
-```{r Cross Validation, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE}
+```{r Cross Validation, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE, results=TRUE}
 fitControl <- trainControl(method = "cv", number = 100)
 set.seed(825)
 
@@ -1244,7 +1244,7 @@ cv_result %>%
     kable_styling("striped", full_width = F)
 ```
 
-```{r  Ploting the distribution of MAEs in CV}
+```{r  Ploting the distribution of MAEs in CV, fig.width=6,fig.height=4}
 ggplot(MAE_reg, aes(MAE)) + 
   geom_histogram(color="black", fill=palette2[1], binwidth = 0.02) +
 #  xlim(0, 1) +
