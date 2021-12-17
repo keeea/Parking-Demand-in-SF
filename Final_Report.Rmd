@@ -640,7 +640,7 @@ grid.arrange(ncol = 3,
     scale_fill_manual(values = palette5_3,
                       labels = qBr(census_net, "Percent_Taking_Public_Trans"),
                       name = "Percentage")+
-    labs(title = "Percentage of People Who Take \n Public Transportation to Work")+
+    labs(title = "Percentage of People Taking \n Public Transportation to Work")+
     mapTheme())
 ```
 
@@ -932,7 +932,7 @@ result_AIC <- as.data.frame(Regression) %>%
 
 result_AIC %>% 
   kable() %>%
-    kable_styling("striped", full_width = F) %>% 
+    kable_styling("striped", full_width = F,position = "left") %>% 
     row_spec(2, color = "black", background = palette5[1]) %>%
     row_spec(3, color = "black", background = palette5[1]) %>%
     row_spec(4, color = "black", background = palette5[1]) 
@@ -967,7 +967,7 @@ week_predictions.2 <-
            )
 ```
 
-```{r Ploting the MAE,fig.width=6,fig.height=4}
+```{r Ploting the MAE,fig.width=9,fig.height=4}
 week_predictions <- week_predictions.1 %>%  
     gather(Regression, Prediction, -data, -week) %>% 
     mutate(Observed = map(data, pull, Real_Count),
@@ -993,7 +993,7 @@ week_predictions %>%
   plotTheme()
 ```
 
-```{r plot the MAE of mean count, fig.width=9,fig.height=4}
+```{r plot the MAE of mean count, fig.width=6,fig.height=4}
 predictions_AverageMeter <- week_predictions %>% 
   mutate(interval60 = map(data, pull, interval60),
          uniqueID = map(data, pull, uniqueID)) %>%
@@ -1034,7 +1034,7 @@ predictions_AverageMeter %>%
 
 Moreover, for each model, predicted and observed total parking is taken out of the spatial context and their means plotted in time series form below. With more sophistication comes the ability to predict for the lowest nadir, and the time lags help make this happen. Before and after the nadir is the free parking time.
 
-```{r Errors in time series,fig.height=12}
+```{r Errors in time series,fig.height=9}
 st_drop_geometry(predictions_AverageMeter) %>% 
     dplyr::select(Regression, interval60, uniqueID, Prediction, Observed) %>% 
     gather(Variable, Value, -Regression, -interval60, -uniqueID) %>%
@@ -1176,7 +1176,7 @@ predictions_AverageMeter.2 %>%
 
 We also do the validation by space for `OLS_reg5`. As is shown in the map below, the model performs well in most of the grids, with a MAE of less than 0.1. There are also few outliers which shows high MAE. However, these outliers do not show a clustering pattern, which means our regression model has a good generalizability among the study area.
 
-```{r Mean Absolute Errors by grid and by week, fig.width=4}
+```{r Mean Absolute Errors by grid and by week, fig.width=6}
 predictions_AverageMeter %>% 
   filter(Regression == "C_OLS_reg3" ) %>% 
   group_by(uniqueID, week) %>% 
@@ -1245,7 +1245,7 @@ cv_result <- reg.cv$resample[1:5,]
 
 cv_result %>% 
   kable() %>%
-    kable_styling("striped", full_width = F)
+    kable_styling("striped", full_width = F,position = "left")
 ```
 
 ```{r  Ploting the distribution of MAEs in CV, fig.width=6,fig.height=4}
