@@ -897,7 +897,7 @@ To begin with, five kitchen sink regressions are estimated on train set, each wi
 
 Considering that we compared different regression method here, we use AIC to evaluate the quality of models. OLS_reg2, OLS_reg3, and poisson_reg1 performs better here.
 
-```{r Creating models, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE, results=}
+```{r Creating models, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE}
 OLS_reg1 <- 
   lm(Real_Count ~  hour + dotw + uniqueID ,  data=park.Train)
 
