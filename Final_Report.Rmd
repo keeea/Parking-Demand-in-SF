@@ -1230,7 +1230,7 @@ reg.cv <-
     lagDay + off_parking.nn + countCarshare + Percent_White + 
     Percent_Taking_Public_Trans + countClean + countFood + countIncident + 
     countRetail + pm_district_name + sidewalk_width, 
-    data = st_drop_geometry(park.Train), 
+    data = st_drop_geometry(park.Train2), 
     method = "lm", trControl = fitControl, na.action = na.pass)
 
 
