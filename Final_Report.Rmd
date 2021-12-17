@@ -67,9 +67,9 @@ The City and County of San Francisco, is a cultural, commercial, and financial c
 
 San Francisco is also a popular tourist destination, which is known for its cool summers, fog, steep rolling hills, eclectic mix of architecture, and landmarks, including the Golden Gate Bridge, cable cars, the former Alcatraz Federal Penitentiary, Fisherman's Wharf, and its Chinatown district. With so many famous resorts, San Francisco attracts over 26.5 million visitors in 2019.
 
-![](pics/SF_neighborhoods.jpg)
+![](pics/SF_neighborhoods.jpg "Fig.1 Map of neighborhoods in San Francisco")
 
-Fig. x Map of neighborhoods in San Francisco
+Fig. 1 Map of neighborhoods in San Francisco
 
 With such a large population and huge number of visitors, it is extraordinarily difficult to find a parking space in San Francisco, especially in the downtown San Francisco, or near the tourist destinations. Most residents as well as visitors have experienced cruising and cruising on the street to find just a place to accommodate their car. On-street parking hot spots cluster in the northeastern section of San Francisco, including Financial District, China Town, Fisherman's Wharf, etc., where many commercial hot spots also gather here.
 
@@ -103,7 +103,7 @@ In this project, we aim to carry out a demand prediction model with satisfying s
 
 ## 3.1 Loading and wrangling data
 
-We select six weeks, which is 07/16/2021 - 08/26/2021 (week29 - week34), as the time window to train and test models. First, load and wrangle on-street parking data of meters and records. As it is plotted below, most of the on-street parking behaviors cluster in the northeastern section of San Francisco, including the famous Fisherman's Wharf, where the daytime parking occupancy is closer to 80% and traffic congestion is more serious. So, we trimmed our study area into these ***seven neighborhoods***: North Beach, Russian Hill, Nob Hill, Chinatown, Financial District/South Beach, Tenderloin, South of Market.
+We select six weeks, which is 07/16/2021 - 08/26/2021 (week 29 - week 34), as the time window to train and test models. First, load and wrangle on-street parking data of meters and records. As it is plotted below, most of the on-street parking behaviors cluster in the northeastern section of San Francisco, including the famous Fisherman's Wharf, where the daytime parking occupancy is closer to 80% and traffic congestion is more serious. Thus, we trimmed our study area into these ***seven neighborhoods***: North Beach, Russian Hill, Nob Hill, Chinatown, Financial District/South Beach, Tenderloin, South of Market.
 
 ```{r load data1}
 # import SF neighborhood boundaries
@@ -171,11 +171,11 @@ ggplot() +
 
 ```
 
-Then, load opportunity factors. The hypothesis here is that parking demand is a function of ***exposure*** to a series of geospatial time lags, opportunity and prevent factors, such as built environment, neighborhood and road characteristics, respectively. Experience borrow from geospatial opportunities factors can be thought of as ***latent demand***- areas with occurrence possibility at a specific time even if a paeking has not actually been recorded at the same time.
+Then, load opportunity factors. The hypothesis here is that parking demand is a function of ***exposure*** to a series of geospatial time lags, opportunity and prevent factors, such as built environment, neighborhood and road characteristics, respectively. Experience borrow from geospatial opportunities factors can be thought of as ***latent demand***- areas with occurrence possibility at a specific time even if a parking has not actually been recorded at the same time.
 
 ***Thirteen opportunity factors*** are chosen here: parking management district, retail spots, food spots, police incidents, street cleaning requests, graffiti, parking violations, shared car parking spots, street speeds limit, sidewalk width, white people percentage, average commute time, percentage of people who take public transportation to work in the neighborhood .
 
-To ensure that we can borrow most effective experience from opportunity factors, trim all event factors into those who happened between the same time window (07/16/2021 - 08/26/2021).
+To ensure that we can borrow most effective experience from opportunity factors, we trim all event factors into those that happened between the same time window (07/16/2021 - 08/26/2021).
 
 ```{r load data2}
 
@@ -331,7 +331,7 @@ fishnet_sf <-
 
 ### 3.2.2 Joining meter and parking data into fishnet
 
-To join meter and parking data into fishnet, just count the object for each grid cell. As the map attached below, most of on-street meters and parking records still cluster in the northern study area.
+To join meters and parking data into fishnet, we just count the object for each grid cell. As the map attached below, most of on-street meters and parking records still cluster in the northern study area.
 
 ```{r join meter data into fishnet}
 # select the fishnet grids with meters
@@ -385,7 +385,7 @@ grid.arrange(ncol = 2,
 
 ### 3.3.1 Joining point-level data to the fishnet
 
-For all other point-level data, such as food spots, street cleaning request, parking violations and etc., the way to aggregate data into fishnet is also to ***get the count*** of point by cell. Distribution maps of factors are listed below. These opportunity factors illustrate slightly different spatial characteristics.
+For all other point-level data, such as food spots, street cleaning request, parking violations ,etc., the way to aggregate data into fishnet is also to ***get the count*** of points by cell. Distribution maps of factors are listed below. These opportunity factors illustrate slightly different in spatial characteristics.
 
 Food and retail spots are mainly clustered in North San Francisco, while 311 requests (street cleaning, graffiti, and police incident) and parking violations are mostly in the west. Shared car on-street parking space tend to evenly distribute compared to other factors above.
 
@@ -597,7 +597,7 @@ grid.arrange(ncol = 2,
 
 ### 3.3.3 Joining polygon-level neighborhood data to the fishnet
 
-As for neighborhood data, we extract data from census and calculate to obtain three metrics. To join them with the fishnet, we calculate the ***average value*** of all block groups that intersect with this cell. As it's shown below, white race percentage, average commute time, percentage of people who take public transportation to work in the neighborhood .
+As for neighborhood data, we extract data from census and calculate to obtain three metrics. To join them with the fishnet, we calculate the ***average value*** of all block groups that intersect with this cell. As it's shown below, the three metrics are percentage of white, average commute time, percentage of people who take public transportation to work in the neighborhood .
 
 ```{r Joining neighborhood data to the fishnett, fig.width=6}
 census_net <- st_join(meter_net,SF_census) %>% 
@@ -644,7 +644,7 @@ grid.arrange(ncol = 3,
 
 ### 3.3.4 Combining all variables into one fishnet
 
-Combine all opportunity factors and parking data together to create a final net data set.
+Here we combine all opportunity factors and parking data together to create a final net data set.
 
 ```{r Combining all factors into one fishnet}
 centroid_fishnet <- st_centroid(meter_net) %>%
@@ -673,9 +673,9 @@ var_net <-
 
 ## 3.4 Creating the space/time panel- Selecting temporal units
 
-Here, we choose ***60 minutes*** as the ***temporal unit*** after contrasting to 30-min, 15-min and 2-hour interval. When the serial unit is less than 60 minutes, there will be more time intervals with constant total parking amount, which means there is no parking for many situations of space-time combination. Therefore, tremendous amount of 0 value in many temporal units result in less accuracy of models. On the contrary, when the serial unit is longer than 60 minutes, the resolution will be too coarse to estimate accurate models.
+Here, we choose ***60 minutes*** as the ***temporal unit*** after contrasting to 30-min, 15-min and 2-hour intervals. When the serial unit is less than 60 minutes, there will be more time intervals with constant total parking amount, which means there is no parking for many situations of space-time combination. Therefore, tremendous amount of 0 value in many temporal units result in low accuracy of models. On the contrary, when the serial unit is longer than 60 minutes, the resolution will be too coarse to estimate accurate models.
 
-With 60-minute temporal unit, create a complete panel with an observation for every possible space-time combination for the later analysis, and count trips for each combination. There are 83,160 possible combinations while there are 735,696 actual observations within study area. The average parking amount in each grid-time combination is around 10. However, the average normalized value (parking amount / meter amount) in each combination is only 0.14. Given that using the sum of parking within a unit rather than the mean of parking within a unit rather can lead to more accurate prediction, our strategy here is predicting the sum count with models first, and then ***divide the sum of parking by the meter amount*** to transfer to the "incremental occupancy".
+With 60-minute temporal unit, we create a complete panel with an observation for every possible space-time combination for the later analysis, and count trips for each combination. There are 83,160 possible combinations while there are 735,696 actual observations within study area. The average parking amount in each grid-time combination is around 10. However, the average normalized value (parking amount / meter amount) in each combination is only 0.14. Given that using the sum of parking within a unit rather than the mean of parking within a unit rather can lead to more accurate prediction, our strategy here is predicting the sum count with models first, and then ***divide the sum of parking by the meter amount*** to transfer to the "incremental occupancy".
 
 ```{r Creating the space/time panel}
 # create space-time panel
@@ -1216,7 +1216,7 @@ anim_save("pics/MAE.gif", MAE_animation, duration=10, renderer = gifski_renderer
 
 To better test the generalizability of the OLS regression model, we apply cross validation here. The distribution of MAE cluster quite tightly together (most of which are from 3.3 to 3.8 approximately), and this suggest that the model have a quite good generalizability.
 
-```{r Cross Validation, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE, results=}}
+```{r Cross Validation, echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE}
 fitControl <- trainControl(method = "cv", number = 100)
 set.seed(825)
 
