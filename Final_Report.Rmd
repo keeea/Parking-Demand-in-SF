@@ -1108,14 +1108,19 @@ step$anova
 After Stepwise regression, the algorithm remove predictors of parking violation and street speed limit. As the result of all additional feature engineering above, the R-squared improves from 0.7779 to 0.7845, and the second MAE (MAE for normalized parking value) decreases from 0.068 to 0.060, which means the average error we have on analogous new occupancy is 6% .
 
 ```{r engineered model result}
+OLS_reg5 <- lm(Real_Count ~ hour + dotw + lagHour + lag2Hours + lag3Hours + 
+    lagDay + off_parking.nn + countCarshare + Percent_White + 
+    Percent_Taking_Public_Trans + countClean + countFood + countIncident + 
+    countRetail + pm_district_name + sidewalk_width,
+     data=park.Train2)
+
 park.Test.weekNest.2 <- 
   as.data.frame(park.Test2) %>%
   nest(-week) 
 
 week_predictions.3 <- 
   park.Test.weekNest.2 %>% 
-    mutate(F_OLS_reg4 = map(.x = data, fit = OLS_reg4, .f = model_pred))
-
+    mutate(F_OLS_reg5 = map(.x = data, fit = OLS_reg5, .f = model_pred))
 
 week_predictions.3 <- week_predictions.3 %>%  
     gather(Regression, Prediction, -data, -week) %>% 
