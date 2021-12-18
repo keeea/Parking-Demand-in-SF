@@ -313,7 +313,7 @@ food_spot <- business  %>%
 
 ## 3.2 Creating fishnet and joining with parking data
 
-### 3.2.1 Creating fishnet- Selecting temporal units
+### 3.2.1 Creating fishnet- Selecting spatial units
 
 To represent the spatial trend in a regression-ready form, we aggregate all data into a lattice of grid cells called "fishnet". The fishnet is with ***200m by 200m grid cells***. The reason we apply grid cells as spatial units rather than individual meters or streets is that the grid is the most precise unit to reflect parking demand.
 
@@ -1189,7 +1189,7 @@ predictions_AverageMeter %>%
                         high = palette5_3[5],
                         name = "MAE",
                         guide = "colourbar") +
-    labs(title="Mean Absolute Count Errors by grid and by hour",
+    labs(title="Mean Absolute Errors by grid and by week",
          subtitle = 'For average parking counts within each grid') +
     mapTheme() 
 ```
@@ -1211,7 +1211,7 @@ MAE_animation <-
                         high = palette5_3[5],
                         name = "MAE",
                         guide = "colourbar") +
-    labs(title="Mean Absolute Count Errors by grid and by hour",
+    labs(title="Mean Absolute Errors by grid and by hour",
          subtitle = '1 hour intervals: {current_frame} \nFor the Monday of Week 33; for average parking counts within each grid') +
     transition_manual(interval60)+
     mapTheme()
